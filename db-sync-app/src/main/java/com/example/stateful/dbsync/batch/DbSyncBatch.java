@@ -16,8 +16,8 @@ public record DbSyncBatch(
         List<DbSyncEnvelope> generatedTs,
         List<DbSyncEnvelope> upsertUnprocessedT,
         List<DbSyncEnvelope> upsertUnprocessedS,
-        List<String> deleteUnprocessedTPid,
-        List<String> deleteUnprocessedSPid,
+        List<StateIdentity> deleteUnprocessedT,
+        List<StateIdentity> deleteUnprocessedS,
         Map<Integer, Long> nextOffsetsByPartition
 ) {
 
@@ -26,8 +26,8 @@ public record DbSyncBatch(
         List<DbSyncEnvelope> acceptedS = new ArrayList<>();
         List<DbSyncEnvelope> generatedTs = new ArrayList<>();
 
-        Map<String, OrderedMutation> tState = new HashMap<>();
-        Map<String, OrderedMutation> sState = new HashMap<>();
+        Map<EntityKey, OrderedMutation> tState = new HashMap<>();
+        Map<EntityKey, OrderedMutation> sState = new HashMap<>();
         Map<Integer, Long> nextOffsets = new HashMap<>();
 
         for (ConsumerRecord<String, DbSyncEnvelope> record : records) {
@@ -42,8 +42,8 @@ public record DbSyncBatch(
                 case ACCEPTED_T -> acceptedT.add(event);
                 case ACCEPTED_S -> acceptedS.add(event);
                 case GENERATED_TS -> generatedTs.add(event);
-                case UPSERT_UNPROCESSED_T, DELETE_UNPROCESSED_T -> tState.put(event.pid(), new OrderedMutation(record.partition(), record.offset(), event));
-                case UPSERT_UNPROCESSED_S, DELETE_UNPROCESSED_S -> sState.put(event.pid(), new OrderedMutation(record.partition(), record.offset(), event));
+                case UPSERT_UNPROCESSED_T, DELETE_UNPROCESSED_T -> tState.put(new EntityKey(event.pid(), event.t().id()), new OrderedMutation(record.partition(), record.offset(), event));
+                case UPSERT_UNPROCESSED_S, DELETE_UNPROCESSED_S -> sState.put(new EntityKey(event.pid(), event.s().id()), new OrderedMutation(record.partition(), record.offset(), event));
             }
         }
 
@@ -56,10 +56,10 @@ public record DbSyncBatch(
                 .sorted(orderComparator)
                 .map(OrderedMutation::event)
                 .toList();
-        List<String> deleteUnprocessedTPid = tState.values().stream()
+        List<StateIdentity> deleteUnprocessedT = tState.values().stream()
                 .filter(mutation -> mutation.event().mutationType() == DbSyncMutationType.DELETE_UNPROCESSED_T)
                 .sorted(orderComparator)
-                .map(mutation -> mutation.event().pid())
+                .map(mutation -> new StateIdentity(mutation.event().pid(), mutation.event().t().id()))
                 .toList();
 
         List<DbSyncEnvelope> upsertUnprocessedS = sState.values().stream()
@@ -67,10 +67,10 @@ public record DbSyncBatch(
                 .sorted(orderComparator)
                 .map(OrderedMutation::event)
                 .toList();
-        List<String> deleteUnprocessedSPid = sState.values().stream()
+        List<StateIdentity> deleteUnprocessedS = sState.values().stream()
                 .filter(mutation -> mutation.event().mutationType() == DbSyncMutationType.DELETE_UNPROCESSED_S)
                 .sorted(orderComparator)
-                .map(mutation -> mutation.event().pid())
+                .map(mutation -> new StateIdentity(mutation.event().pid(), mutation.event().s().id()))
                 .toList();
 
         return new DbSyncBatch(
@@ -79,10 +79,16 @@ public record DbSyncBatch(
                 generatedTs,
                 upsertUnprocessedT,
                 upsertUnprocessedS,
-                deleteUnprocessedTPid,
-                deleteUnprocessedSPid,
+                deleteUnprocessedT,
+                deleteUnprocessedS,
                 Map.copyOf(nextOffsets)
         );
+    }
+
+    public record StateIdentity(String pid, String id) {
+    }
+
+    private record EntityKey(String pid, String id) {
     }
 
     private record OrderedMutation(int partition, long offset, DbSyncEnvelope event) {

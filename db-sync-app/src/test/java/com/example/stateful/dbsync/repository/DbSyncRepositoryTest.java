@@ -70,7 +70,7 @@ class DbSyncRepositoryTest {
     void stateUpsertAndDeleteKeepFinalStateCorrect() throws Exception {
         DbSyncBatch batch = DbSyncBatch.from(List.of(
                 record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R1", false, 1, 0), null, null, 0)),
-                record(0, 2, event(DbSyncMutationType.DELETE_UNPROCESSED_T, "IBM", null, null, null, 1)),
+                record(0, 2, event(DbSyncMutationType.DELETE_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R1", false, 1, 1), null, null, 1)),
                 record(0, 3, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "IBM", null, new S("s-1", "IBM", 4, 0), null, 2))
         ));
 
@@ -119,7 +119,7 @@ class DbSyncRepositoryTest {
         DbSyncBatch batch = DbSyncBatch.from(List.of(
                 record(0, 40, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-40", "IBM", "R", false, 40, 0), null, null, 0)),
                 record(0, 41, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-40", "IBM", "R", false, 40, 0), null, null, 1)),
-                record(0, 42, event(DbSyncMutationType.DELETE_UNPROCESSED_S, "IBM", null, null, null, 2)),
+                record(0, 42, event(DbSyncMutationType.DELETE_UNPROCESSED_S, "IBM", null, new S("s-40", "IBM", 40, 40), null, 2)),
                 record(1, 8, event(DbSyncMutationType.ACCEPTED_S, "MSFT", null, new S("s-8", "MSFT", 8, 0), null, 3))
         ));
 
@@ -146,6 +146,44 @@ class DbSyncRepositoryTest {
         Map<TopicPartition, Long> offsets = repository.loadOffsets(GROUP, TOPIC, List.of(0, 1));
         assertThat(offsets.get(new TopicPartition(TOPIC, 0))).isEqualTo(13L);
         assertThat(offsets.get(new TopicPartition(TOPIC, 1))).isEqualTo(2L);
+    }
+
+    @Test
+    void multipleOpenTRowsPerPidArePreservedAndDeleteRemovesOnlyTargetRow() throws Exception {
+        DbSyncBatch upsertBatch = DbSyncBatch.from(List.of(
+                record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R1", false, 10, 0), null, null, 0)),
+                record(0, 2, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-2", "IBM", "R2", false, 11, 0), null, null, 1))
+        ));
+        repository.applyBatch(GROUP, TOPIC, upsertBatch);
+
+        DbSyncBatch deleteBatch = DbSyncBatch.from(List.of(
+                record(0, 3, event(DbSyncMutationType.DELETE_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R1", false, 10, 10), null, null, 0))
+        ));
+        repository.applyBatch(GROUP, TOPIC, deleteBatch);
+
+        try (Connection connection = dataSource.getConnection()) {
+            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_t_state WHERE pid='IBM'", 1);
+            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_t_state WHERE pid='IBM' AND t_id='t-2'", 1);
+        }
+    }
+
+    @Test
+    void multipleOpenSRowsPerPidArePreservedAndDeleteRemovesOnlyTargetRow() throws Exception {
+        DbSyncBatch upsertBatch = DbSyncBatch.from(List.of(
+                record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "IBM", null, new S("s-1", "IBM", 10, 0), null, 0)),
+                record(0, 2, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "IBM", null, new S("s-2", "IBM", 11, 0), null, 1))
+        ));
+        repository.applyBatch(GROUP, TOPIC, upsertBatch);
+
+        DbSyncBatch deleteBatch = DbSyncBatch.from(List.of(
+                record(0, 3, event(DbSyncMutationType.DELETE_UNPROCESSED_S, "IBM", null, new S("s-1", "IBM", 10, 10), null, 0))
+        ));
+        repository.applyBatch(GROUP, TOPIC, deleteBatch);
+
+        try (Connection connection = dataSource.getConnection()) {
+            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_s_state WHERE pid='IBM'", 1);
+            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_s_state WHERE pid='IBM' AND s_id='s-2'", 1);
+        }
     }
 
     private static ConsumerRecord<String, DbSyncEnvelope> record(int partition, long offset, DbSyncEnvelope event) {

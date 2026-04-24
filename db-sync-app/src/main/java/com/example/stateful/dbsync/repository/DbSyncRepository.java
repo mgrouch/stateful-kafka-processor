@@ -135,15 +135,17 @@ public final class DbSyncRepository {
             statement.executeBatch();
         }
         try (PreparedStatement statement = connection.prepareStatement(sql.insertDeleteUnprocessedTTemp())) {
-            for (String pid : batch.deleteUnprocessedTPid()) {
-                statement.setString(1, pid);
+            for (DbSyncBatch.StateIdentity identity : batch.deleteUnprocessedT()) {
+                statement.setString(1, identity.pid());
+                statement.setString(2, identity.id());
                 statement.addBatch();
             }
             statement.executeBatch();
         }
         try (PreparedStatement statement = connection.prepareStatement(sql.insertDeleteUnprocessedSTemp())) {
-            for (String pid : batch.deleteUnprocessedSPid()) {
-                statement.setString(1, pid);
+            for (DbSyncBatch.StateIdentity identity : batch.deleteUnprocessedS()) {
+                statement.setString(1, identity.pid());
+                statement.setString(2, identity.id());
                 statement.addBatch();
             }
             statement.executeBatch();

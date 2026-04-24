@@ -108,7 +108,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, allocation.updatedIncomingT(), null, null, record, ordinal);
         } else {
             removeT(pid, allocation.updatedIncomingT().id());
-            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, null, null, null, record, ordinal);
+            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, allocation.updatedIncomingT(), null, null, record, ordinal);
         }
 
         log.info("Processed T id={} pid={} q={} q_a={}", allocation.updatedIncomingT().id(), pid, allocation.updatedIncomingT().q(), allocation.updatedIncomingT().q_a());
@@ -134,7 +134,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_S, null, allocation.updatedIncomingS(), null, record, ordinal);
         } else {
             removeS(pid, allocation.updatedIncomingS().id());
-            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_S, null, null, null, record, ordinal);
+            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_S, null, allocation.updatedIncomingS(), null, record, ordinal);
         }
 
         log.info("Processed S id={} pid={} q={} q_a={}", allocation.updatedIncomingS().id(), pid, allocation.updatedIncomingS().q(), allocation.updatedIncomingS().q_a());
@@ -158,7 +158,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
                 emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_S, null, s, null, record, ordinal.next());
             } else {
                 closedIds.add(s.id());
-                emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_S, null, null, null, record, ordinal.next());
+                emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_S, null, s, null, record, ordinal.next());
             }
         }
         closedIds.forEach(openById::remove);
@@ -177,7 +177,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
                 emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, t, null, null, record, ordinal.next());
             } else {
                 closedIds.add(t.id());
-                emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, null, null, null, record, ordinal.next());
+                emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, t, null, null, record, ordinal.next());
             }
         }
         closedIds.forEach(openById::remove);

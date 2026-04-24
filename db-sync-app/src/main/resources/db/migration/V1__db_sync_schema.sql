@@ -38,7 +38,7 @@ CREATE TABLE generated_ts (
 
 IF OBJECT_ID('unprocessed_t_state', 'U') IS NULL
 CREATE TABLE unprocessed_t_state (
-    pid NVARCHAR(128) PRIMARY KEY,
+    pid NVARCHAR(128) NOT NULL,
     t_id NVARCHAR(128) NOT NULL,
     ref NVARCHAR(128) NOT NULL,
     cancel BIT NOT NULL,
@@ -47,19 +47,21 @@ CREATE TABLE unprocessed_t_state (
     source_partition INT NOT NULL,
     source_offset BIGINT NOT NULL,
     source_timestamp BIGINT NOT NULL,
-    event_id NVARCHAR(255) NOT NULL
+    event_id NVARCHAR(255) NOT NULL,
+    PRIMARY KEY (pid, t_id)
 );
 
 IF OBJECT_ID('unprocessed_s_state', 'U') IS NULL
 CREATE TABLE unprocessed_s_state (
-    pid NVARCHAR(128) PRIMARY KEY,
+    pid NVARCHAR(128) NOT NULL,
     s_id NVARCHAR(128) NOT NULL,
     q BIGINT NOT NULL,
     source_topic NVARCHAR(255) NOT NULL,
     source_partition INT NOT NULL,
     source_offset BIGINT NOT NULL,
     source_timestamp BIGINT NOT NULL,
-    event_id NVARCHAR(255) NOT NULL
+    event_id NVARCHAR(255) NOT NULL,
+    PRIMARY KEY (pid, s_id)
 );
 
 IF OBJECT_ID('kafka_consumer_offsets', 'U') IS NULL
