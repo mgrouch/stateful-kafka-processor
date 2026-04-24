@@ -275,7 +275,7 @@ class TopologyFactoryTest {
 
 
     @Test
-    void incomingRDirectionSClosesAllNegativeT() throws Exception {
+    void incomingRDirectionSDoesNotCloseOppositeSignTWithoutTS() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -288,7 +288,7 @@ class TopologyFactoryTest {
             input.pipeInput("IBM", MessageEnvelope.forS(new S("s-r", "IBM", 5L, 0L)), t0.plusMillis(2).toEpochMilli());
 
             assertThat(output.isEmpty()).isTrue();
-            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).isEmpty();
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).hasSize(2);
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items().get(0);
             assertThat(openS.id()).isEqualTo("s-r");
             assertThat(openS.q_a()).isZero();
@@ -296,7 +296,7 @@ class TopologyFactoryTest {
     }
 
     @Test
-    void incomingDDirectionSClosesAllPositiveT() throws Exception {
+    void incomingDDirectionSDoesNotCloseOppositeSignTWithoutTS() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -309,7 +309,7 @@ class TopologyFactoryTest {
             input.pipeInput("IBM", MessageEnvelope.forS(new S("s-d", "IBM", -5L, 0L)), t0.plusMillis(2).toEpochMilli());
 
             assertThat(output.isEmpty()).isTrue();
-            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).isEmpty();
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).hasSize(2);
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items().get(0);
             assertThat(openS.id()).isEqualTo("s-d");
             assertThat(openS.q_a()).isZero();
