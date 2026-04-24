@@ -3,6 +3,7 @@ package com.example.stateful.processor.topology.processor;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
+import com.example.stateful.domain.AllocationStatus;
 import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.DbSyncMutationType;
 import com.example.stateful.messaging.MessageEnvelope;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -150,8 +152,8 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             long allocated = Math.min(tRemaining, sRemaining);
 
             if (allocated > 0) {
-                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.cancel(), updatedT.q(), updatedT.q_a() + allocated);
-                S nextS = new S(candidate.id(), candidate.pid(), candidate.q(), candidate.q_a() + allocated);
+                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.cancel(), updatedT.q(), updatedT.q_a() + allocated, updatedT.a_status());
+                S nextS = new S(candidate.id(), candidate.pid(), candidate.q(), candidate.q_a() + allocated, candidate.rollover());
                 updatedS.add(nextS);
                 emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.q(), allocated));
             } else {
@@ -164,21 +166,22 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     }
 
     private AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
-        requireSamePid(candidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
+        List<T> orderedCandidates = orderTCandidates(candidates);
+        requireSamePid(orderedCandidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
 
         List<T> updatedT = new ArrayList<>();
         List<TS> emitted = new ArrayList<>();
         S updatedS = incomingS;
         int tsIndex = 0;
 
-        for (T candidate : candidates) {
+        for (T candidate : orderedCandidates) {
             long sRemaining = remaining(updatedS.q(), updatedS.q_a());
             long tRemaining = remaining(candidate.q(), candidate.q_a());
             long allocated = Math.min(tRemaining, sRemaining);
 
             if (allocated > 0) {
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.cancel(), candidate.q(), candidate.q_a() + allocated);
-                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.q(), updatedS.q_a() + allocated);
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.cancel(), candidate.q(), candidate.q_a() + allocated, candidate.a_status());
+                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.q(), updatedS.q_a() + allocated, updatedS.rollover());
                 updatedT.add(nextT);
                 emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.q(), allocated));
             } else {
@@ -188,6 +191,14 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
         validateAllocationOutput(updatedS.pid(), updatedT, List.of(updatedS), emitted);
         return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
+    }
+
+    private List<T> orderTCandidates(List<T> candidates) {
+        return candidates.stream()
+                .sorted(Comparator
+                        .comparing((T t) -> t.a_status() != AllocationStatus.FAIL)
+                        .thenComparing(T::id))
+                .toList();
     }
 
     private void validateAllocationOutput(String pid, List<T> allowedT, List<S> allowedS, List<TS> emittedTs) {

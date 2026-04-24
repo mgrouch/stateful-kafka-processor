@@ -1,5 +1,6 @@
 package com.example.stateful.processor.topology;
 
+import com.example.stateful.domain.AllocationStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.messaging.DbSyncEnvelope;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
@@ -127,6 +129,34 @@ class TopologyFactoryTest {
     }
 
     @Test
+    void newSPrioritizesFailStatusThenUsesDeterministicIdTieBreak() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-b", "IBM", "R-1", false, 30L, 0L, AllocationStatus.NORMAL)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-a", "IBM", "R-2", false, 30L, 0L, AllocationStatus.NORMAL)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-fail", "IBM", "R-3", false, 30L, 0L, AllocationStatus.FAIL)), t0.plusMillis(2).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 70L, 0L, true)), t0.plusMillis(3).toEpochMilli());
+
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).hasSize(3);
+            assertThat(emitted).extracting(v -> v.ts().tid()).containsExactly("t-fail", "t-a", "t-b");
+            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(30L, 30L, 10L);
+
+            List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items();
+            assertThat(openT).hasSize(1);
+            assertThat(openT.get(0).id()).isEqualTo("t-b");
+            assertThat(openT.get(0).q_a()).isEqualTo(10L);
+
+            assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items()).isEmpty();
+        }
+    }
+
+    @Test
     void tDedupeStillUsesPidRefCancel() throws Exception {
         TestHarness harness = new TestHarness();
 
@@ -162,6 +192,14 @@ class TopologyFactoryTest {
         Topology topology = TopologyFactory.create(harness.settings, harness.serdeFactory);
         String description = TopologyFactory.describe(topology);
         assertThat(description).contains(StateStores.UNPROCESSED_T_STORE, StateStores.UNPROCESSED_S_STORE, StateStores.T_DEDUPE_STORE);
+    }
+
+    @Test
+    void modelHasRolloverOnSAndNoRolloverOnT() {
+        assertThat(Arrays.stream(S.class.getRecordComponents()).map(c -> c.getName())).contains("rollover");
+        assertThat(Arrays.stream(T.class.getRecordComponents()).map(c -> c.getName())).doesNotContain("rollover");
+        assertThat(Arrays.stream(T.class.getRecordComponents()).map(c -> c.getName())).doesNotContain("q_carry");
+        assertThat(Arrays.stream(S.class.getRecordComponents()).map(c -> c.getName())).doesNotContain("q_carry");
     }
 
     private static final class TestHarness {
