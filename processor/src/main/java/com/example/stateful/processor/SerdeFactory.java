@@ -1,5 +1,6 @@
 package com.example.stateful.processor;
 
+import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.MessageEnvelope;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.serialization.Serde;
@@ -19,6 +20,10 @@ public final class SerdeFactory {
 
     public Serde<MessageEnvelope> envelopeSerde() {
         return new JsonSerde<>(objectMapper, MessageEnvelope.class);
+    }
+
+    public Serde<DbSyncEnvelope> dbSyncEnvelopeSerde() {
+        return new JsonSerde<>(objectMapper, DbSyncEnvelope.class);
     }
 
     public Serde<TBucket> tBucketSerde() {
