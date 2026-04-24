@@ -2,6 +2,7 @@ package com.example.stateful.processor;
 
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
+import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.MessageEnvelope;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -38,15 +39,17 @@ class KafkaProcessorIT {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         String inputTopic = "input-events-" + suffix;
         String outputTopic = "processed-events-" + suffix;
+        String dbSyncTopic = "db-sync-events-" + suffix;
         String applicationId = "stateful-it-" + suffix;
 
-        createTopics(inputTopic, outputTopic);
+        createTopics(inputTopic, outputTopic, dbSyncTopic);
 
         try (ConfigurableApplicationContext context = ProcessorApplication.createApplication().run(
                 "--spring.kafka.bootstrap-servers=" + BOOTSTRAP,
                 "--app.application-id=" + applicationId,
                 "--app.input-topic=" + inputTopic,
                 "--app.output-topic=" + outputTopic,
+                "--app.db-sync-topic=" + dbSyncTopic,
                 "--app.state-dir=" + Files.createTempDirectory("stateful-it-state"),
                 "--app.commit-interval-ms=100"
         )) {
@@ -56,18 +59,21 @@ class KafkaProcessorIT {
             SerdeFactory serdeFactory = context.getBean(SerdeFactory.class);
 
             try (KafkaProducer<String, MessageEnvelope> producer = producer(serdeFactory);
-                 KafkaConsumer<String, MessageEnvelope> consumer = consumer(serdeFactory, outputTopic)) {
+                 KafkaConsumer<String, MessageEnvelope> consumer = consumer(serdeFactory, outputTopic);
+                 KafkaConsumer<String, DbSyncEnvelope> dbConsumer = dbSyncConsumer(serdeFactory, dbSyncTopic)) {
 
                 producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forT(new T("t-101", "IBM", "ref-101", false, 1000L)))).get();
                 producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forS(new S("s-101", "IBM", 500L)))).get();
                 producer.flush();
 
                 ConsumerRecord<String, MessageEnvelope> output = pollOne(consumer, Duration.ofSeconds(30));
+                ConsumerRecord<String, DbSyncEnvelope> dbSyncOutput = pollOne(dbConsumer, Duration.ofSeconds(30));
                 assertThat(output.key()).isEqualTo("IBM");
                 assertThat(output.value().kind().name()).isEqualTo("TS");
                 assertThat(output.value().ts().id()).isEqualTo("ts-t-101");
                 assertThat(output.value().ts().pid()).isEqualTo("IBM");
                 assertThat(output.value().ts().q()).isEqualTo(1000L);
+                assertThat(dbSyncOutput.key()).isEqualTo("IBM");
 
                 Optional<TBucket> tBucket = waitFor(() -> manager.readUnprocessedT("IBM"), Duration.ofSeconds(15));
                 Optional<SBucket> sBucket = waitFor(() -> manager.readUnprocessedS("IBM"), Duration.ofSeconds(15));
@@ -83,14 +89,15 @@ class KafkaProcessorIT {
         }
     }
 
-    private static void createTopics(String inputTopic, String outputTopic) throws Exception {
+    private static void createTopics(String inputTopic, String outputTopic, String dbSyncTopic) throws Exception {
         Properties properties = new Properties();
         properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
 
         try (AdminClient admin = AdminClient.create(properties)) {
             admin.createTopics(List.of(
                     new NewTopic(inputTopic, 3, (short) 1),
-                    new NewTopic(outputTopic, 3, (short) 1)
+                    new NewTopic(outputTopic, 3, (short) 1),
+                    new NewTopic(dbSyncTopic, 3, (short) 1)
             )).all().get();
         } catch (ExecutionException executionException) {
             if (!(executionException.getCause() instanceof TopicExistsException)) {
@@ -117,10 +124,21 @@ class KafkaProcessorIT {
         return consumer;
     }
 
-    private static ConsumerRecord<String, MessageEnvelope> pollOne(KafkaConsumer<String, MessageEnvelope> consumer, Duration timeout) {
+    private static KafkaConsumer<String, DbSyncEnvelope> dbSyncConsumer(SerdeFactory serdeFactory, String topic) {
+        Properties properties = new Properties();
+        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
+        properties.put(ConsumerConfig.GROUP_ID_CONFIG, "it-consumer-" + UUID.randomUUID());
+        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
+        KafkaConsumer<String, DbSyncEnvelope> consumer = new KafkaConsumer<>(properties, new StringDeserializer(), serdeFactory.dbSyncEnvelopeSerde().deserializer());
+        consumer.subscribe(List.of(topic));
+        return consumer;
+    }
+
+    private static <V> ConsumerRecord<String, V> pollOne(KafkaConsumer<String, V> consumer, Duration timeout) {
         long deadline = System.nanoTime() + timeout.toNanos();
         while (System.nanoTime() < deadline) {
-            ConsumerRecords<String, MessageEnvelope> records = consumer.poll(Duration.ofMillis(500));
+            ConsumerRecords<String, V> records = consumer.poll(Duration.ofMillis(500));
             if (!records.isEmpty()) {
                 return records.iterator().next();
             }

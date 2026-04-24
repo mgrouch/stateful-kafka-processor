@@ -1,5 +1,6 @@
 package com.example.stateful.processor;
 
+import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.MessageEnvelope;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
@@ -11,9 +12,10 @@ import org.apache.kafka.streams.state.Stores;
 
 public final class TopologyFactory {
 
-    private static final String SOURCE = "input-events-source";
-    private static final String PROCESSOR = "stateful-envelope-processor";
-    private static final String SINK = "processed-events-sink";
+    static final String SOURCE = "input-events-source";
+    static final String PROCESSOR = "stateful-envelope-processor";
+    static final String PROCESSED_SINK = "processed-events-sink";
+    static final String DB_SYNC_SINK = "db-sync-events-sink";
 
     private TopologyFactory() {
     }
@@ -23,6 +25,7 @@ public final class TopologyFactory {
 
         Serde<String> stringSerde = serdeFactory.stringSerde();
         Serde<MessageEnvelope> envelopeSerde = serdeFactory.envelopeSerde();
+        Serde<DbSyncEnvelope> dbSyncSerde = serdeFactory.dbSyncEnvelopeSerde();
 
         topology.addSource(
                 SOURCE,
@@ -31,7 +34,7 @@ public final class TopologyFactory {
                 settings.inputTopic()
         );
 
-        ProcessorSupplier<String, MessageEnvelope, String, MessageEnvelope> supplier = StatefulEnvelopeProcessor::new;
+        ProcessorSupplier<String, MessageEnvelope, String, Object> supplier = StatefulEnvelopeProcessor::new;
         topology.addProcessor(PROCESSOR, supplier, SOURCE);
 
         KeyValueBytesStoreSupplier tStoreSupplier = Stores.persistentKeyValueStore(StateStoresConfig.UNPROCESSED_T_STORE);
@@ -52,10 +55,18 @@ public final class TopologyFactory {
         );
 
         topology.addSink(
-                SINK,
+                PROCESSED_SINK,
                 settings.outputTopic(),
                 stringSerde.serializer(),
                 envelopeSerde.serializer(),
+                PROCESSOR
+        );
+
+        topology.addSink(
+                DB_SYNC_SINK,
+                settings.dbSyncTopic(),
+                stringSerde.serializer(),
+                dbSyncSerde.serializer(),
                 PROCESSOR
         );
 
