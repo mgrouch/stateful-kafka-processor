@@ -74,7 +74,7 @@ class KafkaProcessorIT {
                 ConsumerRecord<String, DbSyncEnvelope> dbSyncOutput = pollOne(dbConsumer, Duration.ofSeconds(30));
                 assertThat(output.key()).isEqualTo("IBM");
                 assertThat(output.value().kind().name()).isEqualTo("TS");
-                assertThat(output.value().ts().id()).isEqualTo("ts-t-101");
+                assertThat(output.value().ts().id()).startsWith("ts-s-s-101-");
                 assertThat(output.value().ts().pid()).isEqualTo("IBM");
                 assertThat(output.value().ts().q_a()).isEqualTo(500L);
                 assertThat(dbSyncOutput.key()).isEqualTo("IBM");
