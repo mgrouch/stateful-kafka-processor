@@ -16,6 +16,7 @@ import javax.sql.DataSource;
 import java.util.Map;
 
 import org.springframework.boot.jdbc.DataSourceBuilder;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 public final class ProcessorApplication {
 
@@ -59,6 +60,7 @@ public final class ProcessorApplication {
                     .url(writerSettings.dbUrl())
                     .username(writerSettings.dbUser())
                     .password(writerSettings.dbPassword())
+                    .type(DriverManagerDataSource.class)
                     .build();
         });
         context.registerBean(DbSyncWriter.class, () -> new DbSyncWriter(
