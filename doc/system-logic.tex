@@ -1,0 +1,234 @@
+\documentclass[sigconf]{acmart}
+
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{ragged2e}
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+
+\title{Formal Two-Store Transition System for \texorpdfstring{$T,S,TS$}{T,S,TS}}
+\author{Repository Documentation}
+\date{}
+
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\acmDOI{}
+\acmISBN{}
+\acmPrice{}
+\acmConference{}{}{}
+\acmBooktitle{}
+\acmYear{}
+
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\begin{document}
+\begin{abstract}
+We present a complete mathematical specification of the repository logic as a deterministic state transition system over symbols $T$, $S$, and $TS$ with signed scalar $q$. The model defines admissible records, state stores, compatibility and allocation rules, deterministic ordering with seeded pseudo-random sub-ordering, duplicate suppression over a sliding window, and side-channel emission of mutation events with deterministic identifiers. The presentation is purely symbolic: $T$, $S$, $TS$, and $q$ are treated as abstract objects with no external interpretation.
+\end{abstract}
+
+\maketitle
+
+\section{Symbols and Domains}
+Fix a finite set of partition keys $P$.
+For each $p\in P$ we process records keyed by $p$.
+
+\begin{definition}[Core records]
+A $T$ record is
+\[
+T=(id,p,ref,\tau,cancel,q,q_a,a,\theta_T),
+\]
+with $q\in\mathbb{Z}\setminus\{0\}$ and constraints
+\[
+\operatorname{sgn}(q_a)\in\{0,\operatorname{sgn}(q)\},\qquad |q_a|\le |q|.
+\]
+An $S$ record is
+\[
+S=(id,p,\beta,q,q_{carry},q_a,roll,\theta_S),
+\]
+with $q+q_{carry}\neq 0$ and constraints
+\[
+\operatorname{sgn}(q_a)\in\{0,\operatorname{sgn}(q+q_{carry})\},\qquad |q_a|\le |q+q_{carry}|.
+\]
+A $TS$ record is
+\[
+TS=(id,p,tid,sid,\tau,\beta,q,q_a,\theta_{TS}),
+\]
+with
+\[
+\operatorname{sgn}(q_a)=\operatorname{sgn}(q),\qquad |q_a|\le |q|.
+\]
+\end{definition}
+
+\begin{definition}[Residual operators]
+\[
+R_T(T):=q-q_a,
+\]
+and for $S$ define
+\[
+Q_S:=q+q_{carry},\qquad R_S(S):=Q_S-q_a.
+\]
+An item is \emph{open} iff its residual is nonzero.
+\end{definition}
+
+\section{Per-Key State}
+For each $p$ we keep two stores and one dedupe map:
+\begin{itemize}[leftmargin=*]
+  \item $\mathcal{T}_p$: finite set/list of open $T$.
+  \item $\mathcal{S}_p$: finite set/list of open $S$.
+  \item $\mathcal{D}$: map from dedupe-key to first-seen timestamp for $T$-inputs.
+\end{itemize}
+Global parameter: dedupe window $W=14$ days.
+
+\section{Compatibility and Signed Allocation}
+\begin{definition}[Sign compatibility]
+\[
+\mathrm{Compat}(x,y) \iff x\neq 0\land y\neq 0\land \operatorname{sgn}(x)=\operatorname{sgn}(y).
+\]
+\end{definition}
+
+\begin{definition}[Signed allocation]
+\[
+\mathrm{Alloc}(x,y)=
+\begin{cases}
+\operatorname{sgn}(x)\cdot\min(|x|,|y|), & \mathrm{Compat}(x,y),\\
+0, & \text{otherwise}.
+\end{cases}
+\]
+\end{definition}
+
+\begin{proposition}[Monotone residual contraction]
+If $\delta=\mathrm{Alloc}(x,y)$ then updating
+\[
+x' = x-\delta,\qquad y'=y-\delta
+\]
+preserves sign direction and never increases residual magnitude:
+\[
+|x'|\le |x|,\qquad |y'|\le |y|.
+\]
+\end{proposition}
+
+\section{Input Kinds and Transition Function}
+Each input envelope has kind in $\{T,S,TS\}$.
+For key $p$, one-step transition is
+\[
+\Sigma_p^{k+1} = F(\Sigma_p^k, e_k),
+\]
+with side outputs to two channels: a processed stream and a mutation stream.
+
+\subsection{$T$-kind step}
+Given incoming $T_{in}$:
+\begin{enumerate}[leftmargin=*]
+  \item Build dedupe key $d=(p,ref,cancel)$. If $d\in\mathcal{D}$ and age $\le W$, ignore.
+  \item Otherwise insert/update $\mathcal{D}[d]$ and emit mutation \texttt{ACCEPTED\_T}.
+  \item Select compatible candidates from $\mathcal{S}_p$ by $\mathrm{Compat}(R_T(T_{in}),R_S(S_j))$.
+  \item Order candidates by $(\neg roll, id)$ so $roll=true$ precedes $roll=false$.
+  \item For each ordered $S_j$, compute $\delta_j=\mathrm{Alloc}(R_T,R_S)$, update $q_a$ of both records, and emit one $TS_j$ when $\delta_j\neq 0$.
+  \item For every emitted $TS_j$: forward to processed stream and emit mutation \texttt{GENERATED\_TS}.
+  \item Rewrite $\mathcal{S}_p$ with updated open items (emit upsert/delete mutations item-wise).
+  \item If updated $T_{in}$ is open, upsert into $\mathcal{T}_p$ (emit \texttt{UPSERT\_UNPROCESSED\_T}); else remove by $id$ (emit \texttt{DELETE\_UNPROCESSED\_T}).
+\end{enumerate}
+
+\subsection{$S$-kind step}
+Given incoming $S_{in}$:
+\begin{enumerate}[leftmargin=*]
+  \item Emit mutation \texttt{ACCEPTED\_S}.
+  \item Select compatible candidates from $\mathcal{T}_p$ by $\mathrm{Compat}(R_S(S_{in}),R_T(T_i))$.
+  \item Partition candidates into $a=\texttt{FAIL}$ and $a\neq\texttt{FAIL}$ buckets.
+  \item Canonically sort by $id$ in each bucket, then apply deterministic shuffle with seed
+  \[
+  h(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName).
+  \]
+  \item Iterate candidates in order; apply same signed allocation update and emit $TS$ for nonzero $\delta$.
+  \item Forward emitted $TS$ and mutation \texttt{GENERATED\_TS}.
+  \item Rewrite $\mathcal{T}_p$ with item-wise upsert/delete mutations.
+  \item Keep/remove incoming $S_{in}$ in $\mathcal{S}_p$ with final upsert/delete mutation.
+\end{enumerate}
+
+\subsection{$TS$-kind step}
+Forward input $TS$ to processed stream and emit mutation \texttt{GENERATED\_TS}.
+
+\section{Output Mutation Event Algebra}
+Each mutation output carries
+\[
+(type,p,T?,S?,TS?,topic,partition,offset,timestamp,ordinal,eventId).
+\]
+Deterministic id rule:
+\[
+eventId = topic\|partition\|offset\|ordinal\|type.
+\]
+Thus replay on identical source metadata yields identical identifiers.
+
+\section{Store Rewrite Semantics}
+For a rewritten collection (either $\mathcal{T}_p$ or $\mathcal{S}_p$):
+\begin{itemize}[leftmargin=*]
+  \item Items with nonzero residual are retained as the unique latest version by $id$.
+  \item Items with zero residual are excluded from store image.
+  \item For each item transition open/closed, a matching upsert/delete mutation is emitted.
+\end{itemize}
+
+\section{Dedupe Eviction}
+At punctuation times (stream-time clock), remove all dedupe entries older than cutoff
+\[
+cutoff = streamTime - W.
+\]
+This bounds dedupe memory and preserves window semantics.
+
+\section{Determinism and Invariants}
+\begin{proposition}[Per-key closure]
+All generated $TS$ and rewritten records preserve partition key $p$.
+\end{proposition}
+
+\begin{proposition}[Bounded allocation]
+For every update, signed allocated value respects source bounds; no over-allocation occurs:
+\[
+|q_a|\le |q| \text{ for } T,TS,
+\qquad |q_a|\le |q+q_{carry}| \text{ for } S.
+\]
+\end{proposition}
+
+\begin{proposition}[Bucket priority]
+In $S$-kind processing, all $a=\texttt{FAIL}$ candidates are processed before $a\neq\texttt{FAIL}$ candidates. In $T$-kind processing, all $roll=true$ candidates are processed before $roll=false$ candidates.
+\end{proposition}
+
+\begin{table}[t]
+\centering
+\caption{Mutation type set}
+\begin{tabularx}{\columnwidth}{lY}
+\toprule
+Type & Role \\
+\midrule
+\texttt{ACCEPTED\_T} & accepted input of kind $T$ \\
+\texttt{ACCEPTED\_S} & accepted input of kind $S$ \\
+\texttt{GENERATED\_TS} & emitted or forwarded $TS$ \\
+\texttt{UPSERT\_UNPROCESSED\_T} & open $T$ image update \\
+\texttt{UPSERT\_UNPROCESSED\_S} & open $S$ image update \\
+\texttt{DELETE\_UNPROCESSED\_T} & closed $T$ removal \\
+\texttt{DELETE\_UNPROCESSED\_S} & closed $S$ removal \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{algorithm}[t]
+\caption{Generic signed-pair update}
+\begin{algorithmic}[1]
+\Require two open values with residuals $x,y$
+\State $\delta \gets \mathrm{Alloc}(x,y)$
+\If{$\delta \neq 0$}
+  \State update left allocation accumulator by $+\delta$
+  \State update right allocation accumulator by $+\delta$
+  \State emit link object with scalar $q_a=\delta$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\section{Conclusion}
+The implementation can be treated as a symbolic transition system with state $(\mathcal{T}_p,\mathcal{S}_p,\mathcal{D})$, deterministic ordering, bounded signed updates, and deterministic mutation-side observability. The formulation is intentionally abstract and uses only $T,S,TS,q$ primitives.
+
+\end{document}
