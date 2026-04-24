@@ -1,0 +1,6 @@
+services:
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: stateful-kafka
+    ports:
+      - "9092:9092"

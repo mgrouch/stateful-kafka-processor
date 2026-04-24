@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Start Kafka
+        run: docker compose up -d kafka
+
+      - name: Wait for Kafka
+        run: |
+          CONTAINER_ID=$(docker compose ps -q kafka)
+          for i in {1..30}; do
+            docker exec "$CONTAINER_ID" /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list && exit 0
+            sleep 5
+          done
+          docker compose logs kafka
+          exit 1
+
+      - name: Build and test
+        run: mvn -B -ntp verify -Prun-kafka-it
+
+      - name: Show Kafka logs on failure
+        if: failure()
+        run: docker compose logs kafka
+
+      - name: Stop Kafka
+        if: always()
+        run: docker compose down -v
