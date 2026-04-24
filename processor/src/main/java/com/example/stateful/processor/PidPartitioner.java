@@ -1,8 +1,10 @@
+package com.example.stateful.processor;
+
 import java.nio.charset.StandardCharsets;
 import org.apache.kafka.common.utils.Utils;
 
-public final class KafkaPartitions {
-    private KafkaPartitions() {
+public final class PidPartitioner {
+    private PidPartitioner() {
     }
 
     public static int partitionFor(String pid, int totalPartitions) {
