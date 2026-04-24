@@ -22,12 +22,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
+import java.util.Collections;
 
 public final class StatefulEnvelopeProcessor extends ContextualProcessor<String, MessageEnvelope, String, Object> {
 
@@ -35,10 +40,23 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     static final long DEDUPE_WINDOW_MILLIS = Duration.ofDays(14).toMillis();
     private static final Duration DEDUPE_CLEANUP_INTERVAL = Duration.ofHours(1);
+    private static final String LOTTERY_INCOMING_S = "INCOMING_S";
+    private static final String LOTTERY_FAIL_BUCKET = "FAIL";
+    private static final String LOTTERY_NORMAL_BUCKET = "NORMAL";
+
+    private final long allocationLotterySeed;
 
     private KeyValueStore<String, TBucket> tStore;
     private KeyValueStore<String, SBucket> sStore;
     private KeyValueStore<String, Long> tDedupeStore;
+
+    public StatefulEnvelopeProcessor() {
+        this(1357911L);
+    }
+
+    public StatefulEnvelopeProcessor(long allocationLotterySeed) {
+        this.allocationLotterySeed = allocationLotterySeed;
+    }
 
     @Override
     public void init(ProcessorContext<String, Object> context) {
@@ -140,13 +158,15 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     private AllocationResult allocateForIncomingT(T incomingT, List<S> candidates, String idPrefix) {
         requireSamePid(candidates.stream().map(S::pid).toList(), incomingT.pid(), "S candidate");
+        List<S> orderedCandidates = orderSCandidates(candidates);
+        ensureRolloverPriority(orderedCandidates);
 
         List<S> updatedS = new ArrayList<>();
         List<TS> emitted = new ArrayList<>();
         T updatedT = incomingT;
         int tsIndex = 0;
 
-        for (S candidate : candidates) {
+        for (S candidate : orderedCandidates) {
             long tRemaining = remaining(updatedT.q(), updatedT.q_a());
             long sRemaining = remaining(candidate.q(), candidate.q_a());
             long allocated = Math.min(tRemaining, sRemaining);
@@ -166,8 +186,9 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     }
 
     private AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
-        List<T> orderedCandidates = orderTCandidates(candidates);
+        List<T> orderedCandidates = orderTCandidates(candidates, incomingS.pid(), incomingS.id());
         requireSamePid(orderedCandidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
+        ensureFailPriority(orderedCandidates);
 
         List<T> updatedT = new ArrayList<>();
         List<TS> emitted = new ArrayList<>();
@@ -193,19 +214,67 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
     }
 
-    private List<T> orderTCandidates(List<T> candidates) {
+    private List<S> orderSCandidates(List<S> candidates) {
         return candidates.stream()
                 .sorted(Comparator
-                        .comparing((T t) -> t.a_status() != AllocationStatus.FAIL)
-                        .thenComparing(T::id))
+                        .comparing((S s) -> !s.rollover())
+                        .thenComparing(S::id))
                 .toList();
+    }
+
+    private List<T> orderTCandidates(List<T> candidates, String pid, String incomingId) {
+        List<T> canonical = candidates.stream().sorted(Comparator.comparing(T::id)).toList();
+        List<T> fail = canonical.stream().filter(t -> t.a_status() == AllocationStatus.FAIL).toList();
+        List<T> normal = canonical.stream().filter(t -> t.a_status() != AllocationStatus.FAIL).toList();
+
+        List<T> ordered = new ArrayList<>(candidates.size());
+        ordered.addAll(shuffleDeterministically(fail, pid, incomingId, LOTTERY_INCOMING_S, LOTTERY_FAIL_BUCKET));
+        ordered.addAll(shuffleDeterministically(normal, pid, incomingId, LOTTERY_INCOMING_S, LOTTERY_NORMAL_BUCKET));
+        return ordered;
+    }
+
+    private List<T> shuffleDeterministically(List<T> bucket, String pid, String incomingId, String direction, String bucketName) {
+        List<T> shuffled = new ArrayList<>(bucket);
+        long seed = deriveAllocationSeed(pid, incomingId, direction, bucketName);
+        Collections.shuffle(shuffled, new Random(seed));
+        return shuffled;
+    }
+
+    private long deriveAllocationSeed(String pid, String incomingId, String direction, String bucketName) {
+        return Objects.hash(allocationLotterySeed, pid, incomingId, direction, bucketName);
+    }
+
+    private static void ensureFailPriority(List<T> orderedCandidates) {
+        boolean seenNormal = false;
+        for (T candidate : orderedCandidates) {
+            if (candidate.a_status() == AllocationStatus.FAIL) {
+                if (seenNormal) {
+                    throw new IllegalStateException("FAIL T must be ordered before NORMAL T");
+                }
+            } else {
+                seenNormal = true;
+            }
+        }
+    }
+
+    private static void ensureRolloverPriority(List<S> orderedCandidates) {
+        boolean seenNonRollover = false;
+        for (S candidate : orderedCandidates) {
+            if (candidate.rollover()) {
+                if (seenNonRollover) {
+                    throw new IllegalStateException("rollover S must be ordered before non-rollover S");
+                }
+            } else {
+                seenNonRollover = true;
+            }
+        }
     }
 
     private void validateAllocationOutput(String pid, List<T> allowedT, List<S> allowedS, List<TS> emittedTs) {
         Set<String> allowedTid = new HashSet<>();
         Set<String> allowedSid = new HashSet<>();
-        java.util.Map<String, Long> tQuantityById = new java.util.HashMap<>();
-        java.util.Map<String, Long> allocatedByTid = new java.util.HashMap<>();
+        Map<String, Long> tQuantityById = new HashMap<>();
+        Map<String, Long> allocatedByTid = new HashMap<>();
         for (T t : allowedT) {
             if (!pid.equals(t.pid())) {
                 throw new IllegalStateException("allocate output has T with different pid");
@@ -236,54 +305,54 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             if (!allowedSid.contains(ts.sid())) {
                 throw new IllegalStateException("allocate output references unknown TS.sid " + ts.sid());
             }
-            long sourceQ = tQuantityById.get(ts.tid());
-            if (ts.q() != sourceQ) {
-                throw new IllegalStateException("allocate output has TS.q that does not match source T.q");
-            }
-            if (Long.signum(ts.q_a()) != Long.signum(ts.q())) {
-                throw new IllegalStateException("allocate output has TS q_a sign different from TS.q sign");
-            }
-            if (Math.abs(ts.q_a()) > Math.abs(ts.q())) {
-                throw new IllegalStateException("allocate output has TS abs(q_a) > abs(q)");
+            if (ts.q_a() <= 0) {
+                throw new IllegalStateException("allocate output has TS.q_a <= 0");
             }
             long allocatedForTid = allocatedByTid.getOrDefault(ts.tid(), 0L) + ts.q_a();
             allocatedByTid.put(ts.tid(), allocatedForTid);
-            if (Math.abs(allocatedForTid) > Math.abs(sourceQ)) {
+            long sourceQ = tQuantityById.get(ts.tid());
+            if (allocatedForTid > sourceQ) {
                 throw new IllegalStateException("allocate output over-allocates T id " + ts.tid());
             }
         }
     }
 
     private void persistUpdatedS(String pid, List<S> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
-        List<S> open = new ArrayList<>();
+        Map<String, S> openById = new LinkedHashMap<>();
+        Set<String> closedIds = new HashSet<>();
         for (S s : updatedCandidates) {
             if (!pid.equals(s.pid())) {
                 throw new IllegalStateException("Updated S pid mismatch");
             }
             if (isOpen(s)) {
-                open.add(s);
+                openById.put(s.id(), s);
                 emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_S, null, s, null, record, ordinal.next());
             } else {
+                closedIds.add(s.id());
                 emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_S, null, null, null, record, ordinal.next());
             }
         }
-        sStore.put(pid, new SBucket(open));
+        closedIds.forEach(openById::remove);
+        sStore.put(pid, new SBucket(new ArrayList<>(openById.values())));
     }
 
     private void persistUpdatedT(String pid, List<T> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
-        List<T> open = new ArrayList<>();
+        Map<String, T> openById = new LinkedHashMap<>();
+        Set<String> closedIds = new HashSet<>();
         for (T t : updatedCandidates) {
             if (!pid.equals(t.pid())) {
                 throw new IllegalStateException("Updated T pid mismatch");
             }
             if (isOpen(t)) {
-                open.add(t);
+                openById.put(t.id(), t);
                 emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, t, null, null, record, ordinal.next());
             } else {
+                closedIds.add(t.id());
                 emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, null, null, null, record, ordinal.next());
             }
         }
-        tStore.put(pid, new TBucket(open));
+        closedIds.forEach(openById::remove);
+        tStore.put(pid, new TBucket(new ArrayList<>(openById.values())));
     }
 
     private List<S> loadS(String pid) {

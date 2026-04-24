@@ -3,6 +3,7 @@ package com.example.stateful.messaging;
 import com.example.stateful.domain.AllocationStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
+import com.example.stateful.domain.TS;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -50,5 +51,23 @@ class MessageEnvelopeSerdeTest {
         assertEquals(91L, parsed.s().q());
         assertEquals(8L, parsed.s().q_a());
         assertTrue(parsed.s().rollover());
+    }
+
+    @Test
+    void tsEnvelopeRoundTripsAllocatedQuantity() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.findAndRegisterModules();
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+        MessageEnvelope original = MessageEnvelope.forTS(new TS("ts-1", "IBM", "t-1", "s-1", 99L, 12L));
+
+        String json = mapper.writeValueAsString(original);
+        MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
+
+        assertEquals(MessageKind.TS, parsed.kind());
+        assertEquals("IBM", parsed.ts().pid());
+        assertEquals("t-1", parsed.ts().tid());
+        assertEquals("s-1", parsed.ts().sid());
+        assertEquals(12L, parsed.ts().q_a());
     }
 }
