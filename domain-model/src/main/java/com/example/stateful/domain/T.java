@@ -2,9 +2,13 @@ package com.example.stateful.domain;
 
 import java.util.Objects;
 
-public record T(String id, String pid, String ref, boolean cancel, long q, long q_a, AStatus a_status) {
+public record T(String id, String pid, String ref, boolean cancel, long q, long q_a, AStatus a_status, TT tt) {
     public T(String id, String pid, String ref, boolean cancel, long q, long q_a) {
-        this(id, pid, ref, cancel, q, q_a, AStatus.NORMAL);
+        this(id, pid, ref, cancel, q, q_a, AStatus.NORMAL, TT.B);
+    }
+
+    public T(String id, String pid, String ref, boolean cancel, long q, long q_a, AStatus a_status) {
+        this(id, pid, ref, cancel, q, q_a, a_status, TT.B);
     }
 
     public T {
@@ -12,6 +16,7 @@ public record T(String id, String pid, String ref, boolean cancel, long q, long 
         requireText(pid, "pid");
         requireText(ref, "ref");
         a_status = a_status == null ? AStatus.NORMAL : a_status;
+        tt = tt == null ? TT.B : tt;
 
         if (q == 0L) {
             throw new IllegalArgumentException("q must not be 0");

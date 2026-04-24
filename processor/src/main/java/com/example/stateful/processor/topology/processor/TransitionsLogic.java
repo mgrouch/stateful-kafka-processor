@@ -51,10 +51,10 @@ final class TransitionsLogic {
             long allocated = signedAllocation(tRemaining, sRemaining);
 
             if (allocated != 0) {
-                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.cancel(), updatedT.q(), updatedT.q_a() + allocated, updatedT.a_status());
-                S nextS = new S(candidate.id(), candidate.pid(), candidate.q(), candidate.q_carry(), candidate.q_a() + allocated, candidate.rollover());
+                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.cancel(), updatedT.q(), updatedT.q_a() + allocated, updatedT.a_status(), updatedT.tt());
+                S nextS = new S(candidate.id(), candidate.pid(), candidate.q(), candidate.q_carry(), candidate.q_a() + allocated, candidate.rollover(), candidate.dir());
                 updatedS.add(nextS);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.q(), allocated));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.q(), allocated, updatedT.tt()));
             } else {
                 updatedS.add(candidate);
             }
@@ -88,10 +88,10 @@ final class TransitionsLogic {
             long allocated = signedAllocation(sRemaining, tRemaining);
 
             if (allocated != 0) {
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.cancel(), candidate.q(), candidate.q_a() + allocated, candidate.a_status());
-                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.rollover());
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.cancel(), candidate.q(), candidate.q_a() + allocated, candidate.a_status(), candidate.tt());
+                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.rollover(), updatedS.dir());
                 updatedT.add(nextT);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.q(), allocated));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.q(), allocated, nextT.tt()));
             } else {
                 updatedT.add(candidate);
             }
