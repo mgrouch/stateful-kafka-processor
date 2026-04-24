@@ -86,11 +86,19 @@ For each $p$ we keep two stores and one dedupe map:
 \end{itemize}
 Global parameter: dedupe window $W=14$ days.
 
-\section{Compatibility and Signed Allocation}
+\section{Compatibility and $q$-Sign-Based Allocation Rules}
 \begin{definition}[Sign compatibility]
 \[
 \mathrm{Compat}(x,y) \iff x\neq 0\land y\neq 0\land \operatorname{sgn}(x)=\operatorname{sgn}(y).
 \]
+\end{definition}
+
+\begin{definition}[$q$-sign gate]
+For any candidate pair $(T_i,S_j)$, allocation is admissible only when
+\[
+\operatorname{sgn}(R_T(T_i))=\operatorname{sgn}(R_S(S_j)).
+\]
+Hence positive residuals allocate only with positive residuals, and negative residuals allocate only with negative residuals.
 \end{definition}
 
 \begin{definition}[Signed allocation]
@@ -103,6 +111,18 @@ Global parameter: dedupe window $W=14$ days.
 \]
 \end{definition}
 
+\begin{remark}[Operational update rule]
+If $\delta=\mathrm{Alloc}(R_T,R_S)\neq 0$, then both allocators move by the same signed amount:
+\[
+q_a^{(T)} \gets q_a^{(T)} + \delta,\qquad q_a^{(S)} \gets q_a^{(S)} + \delta,
+\]
+and emitted link value satisfies
+\[
+q_a^{(TS)}=\delta,\qquad \operatorname{sgn}(q_a^{(TS)})=\operatorname{sgn}(R_T)=\operatorname{sgn}(R_S).
+\]
+If compatibility fails, $\delta=0$ and no $TS$ is emitted.
+\end{remark}
+
 \begin{proposition}[Monotone residual contraction]
 If $\delta=\mathrm{Alloc}(x,y)$ then updating
 \[
@@ -112,6 +132,10 @@ preserves sign direction and never increases residual magnitude:
 \[
 |x'|\le |x|,\qquad |y'|\le |y|.
 \]
+\end{proposition}
+
+\begin{proposition}[No cross-sign allocation]
+If $\operatorname{sgn}(x)\neq \operatorname{sgn}(y)$ or either value is $0$, then $\mathrm{Alloc}(x,y)=0$. Therefore, opposite-sign quantities never cross-allocate.
 \end{proposition}
 
 \section{Input Kinds and Transition Function}
