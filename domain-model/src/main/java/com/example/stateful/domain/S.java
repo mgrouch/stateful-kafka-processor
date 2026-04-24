@@ -2,7 +2,11 @@ package com.example.stateful.domain;
 
 import java.util.Objects;
 
-public record S(String id, String pid, long q, long q_a) {
+public record S(String id, String pid, long q, long q_a, boolean rollover) {
+    public S(String id, String pid, long q, long q_a) {
+        this(id, pid, q, q_a, false);
+    }
+
     public S {
         requireText(id, "id");
         requireText(pid, "pid");

@@ -2,11 +2,16 @@ package com.example.stateful.domain;
 
 import java.util.Objects;
 
-public record T(String id, String pid, String ref, boolean cancel, long q, long q_a) {
+public record T(String id, String pid, String ref, boolean cancel, long q, long q_a, AllocationStatus a_status) {
+    public T(String id, String pid, String ref, boolean cancel, long q, long q_a) {
+        this(id, pid, ref, cancel, q, q_a, AllocationStatus.NORMAL);
+    }
+
     public T {
         requireText(id, "id");
         requireText(pid, "pid");
         requireText(ref, "ref");
+        a_status = a_status == null ? AllocationStatus.NORMAL : a_status;
         if (q < 0) {
             throw new IllegalArgumentException("q must be >= 0");
         }
