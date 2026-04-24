@@ -1,8 +1,6 @@
 package com.example.stateful.processor.app;
 
 import com.example.stateful.processor.config.ProcessorSettings;
-import com.example.stateful.processor.dbsync.DbSyncWriter;
-import com.example.stateful.processor.dbsync.DbSyncWriterSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.stream.KafkaStreamsManager;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -11,12 +9,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.context.support.GenericApplicationContext;
-
-import javax.sql.DataSource;
 import java.util.Map;
-
-import org.springframework.boot.jdbc.DataSourceBuilder;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 public final class ProcessorApplication {
 
@@ -55,21 +48,6 @@ public final class ProcessorApplication {
         });
         context.registerBean(ProcessorSettings.class, () -> ProcessorSettings.from(context.getEnvironment()));
         context.registerBean(SerdeFactory.class, () -> new SerdeFactory(context.getBean(ObjectMapper.class)));
-        context.registerBean(DbSyncWriterSettings.class, () -> DbSyncWriterSettings.from(context.getEnvironment(), context.getBean(ProcessorSettings.class)));
-        context.registerBean(DataSource.class, () -> {
-            DbSyncWriterSettings writerSettings = context.getBean(DbSyncWriterSettings.class);
-            return DataSourceBuilder.create()
-                    .url(writerSettings.dbUrl())
-                    .username(writerSettings.dbUser())
-                    .password(writerSettings.dbPassword())
-                    .type(DriverManagerDataSource.class)
-                    .build();
-        });
-        context.registerBean(DbSyncWriter.class, () -> new DbSyncWriter(
-                context.getBean(DbSyncWriterSettings.class),
-                context.getBean(SerdeFactory.class),
-                context.getBean(DataSource.class)
-        ));
         context.registerBean(KafkaStreamsManager.class, () -> new KafkaStreamsManager(
                 context.getBean(ProcessorSettings.class),
                 context.getBean(SerdeFactory.class)
