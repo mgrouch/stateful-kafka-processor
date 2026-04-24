@@ -14,6 +14,8 @@ import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier;
 import org.apache.kafka.streams.state.Stores;
 
+import java.util.Map;
+
 public final class TopologyFactory {
 
     static final String SOURCE = "input-events-source";
@@ -47,15 +49,18 @@ public final class TopologyFactory {
         KeyValueBytesStoreSupplier dedupeStoreSupplier = Stores.persistentKeyValueStore(StateStores.T_DEDUPE_STORE);
 
         topology.addStateStore(
-                Stores.keyValueStoreBuilder(tStoreSupplier, stringSerde, serdeFactory.tBucketSerde()),
+                Stores.keyValueStoreBuilder(tStoreSupplier, stringSerde, serdeFactory.tBucketSerde())
+                        .withLoggingEnabled(Map.of()),
                 PROCESSOR
         );
         topology.addStateStore(
-                Stores.keyValueStoreBuilder(sStoreSupplier, stringSerde, serdeFactory.sBucketSerde()),
+                Stores.keyValueStoreBuilder(sStoreSupplier, stringSerde, serdeFactory.sBucketSerde())
+                        .withLoggingEnabled(Map.of()),
                 PROCESSOR
         );
         topology.addStateStore(
-                Stores.keyValueStoreBuilder(dedupeStoreSupplier, stringSerde, Serdes.Long()),
+                Stores.keyValueStoreBuilder(dedupeStoreSupplier, stringSerde, Serdes.Long())
+                        .withLoggingEnabled(Map.of()),
                 PROCESSOR
         );
 

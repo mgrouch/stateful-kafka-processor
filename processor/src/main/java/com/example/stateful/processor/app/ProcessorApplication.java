@@ -37,6 +37,8 @@ public final class ProcessorApplication {
                 "app.db-sync-topic", "db-sync-events",
                 "app.state-dir", "processor/kafka-streams-state",
                 "app.commit-interval-ms", "100",
+                "app.streams.replication-factor", "3",
+                "app.streams.num-standby-replicas", "1",
                 "spring.kafka.bootstrap-servers", "localhost:9092"
         ));
         application.addInitializers(context -> registerBeans((GenericApplicationContext) context));

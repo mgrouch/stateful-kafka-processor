@@ -339,6 +339,8 @@ class TopologyFactoryTest {
                     "db-sync-events",
                     Files.createTempDirectory("streams-test-state"),
                     100,
+                    1,
+                    0,
                     lotterySeed
             );
         }

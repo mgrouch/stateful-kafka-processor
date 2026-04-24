@@ -19,6 +19,8 @@ public record ProcessorSettings(
         String dbSyncTopic,
         Path stateDir,
         long commitIntervalMs,
+        int replicationFactor,
+        int numStandbyReplicas,
         long allocationLotterySeed
 ) {
 
@@ -32,6 +34,12 @@ public record ProcessorSettings(
         if (commitIntervalMs <= 0) {
             throw new IllegalArgumentException("commitIntervalMs must be > 0");
         }
+        if (replicationFactor <= 0) {
+            throw new IllegalArgumentException("replicationFactor must be > 0");
+        }
+        if (numStandbyReplicas < 0) {
+            throw new IllegalArgumentException("numStandbyReplicas must be >= 0");
+        }
     }
 
     public static ProcessorSettings from(Environment environment) {
@@ -43,6 +51,8 @@ public record ProcessorSettings(
                 environment.getRequiredProperty("app.db-sync-topic"),
                 Path.of(environment.getRequiredProperty("app.state-dir")),
                 Long.parseLong(environment.getRequiredProperty("app.commit-interval-ms")),
+                Integer.parseInt(environment.getProperty("app.streams.replication-factor", "3")),
+                Integer.parseInt(environment.getProperty("app.streams.num-standby-replicas", "1")),
                 Long.parseLong(environment.getProperty("allocation.lottery.seed", "1357911"))
         );
     }
@@ -53,7 +63,8 @@ public record ProcessorSettings(
         properties.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         properties.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE_V2);
         properties.put(StreamsConfig.NUM_STREAM_THREADS_CONFIG, 1);
-        properties.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, 1);
+        properties.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, replicationFactor);
+        properties.put(StreamsConfig.NUM_STANDBY_REPLICAS_CONFIG, numStandbyReplicas);
         properties.put(StreamsConfig.STATE_DIR_CONFIG, stateDir.toAbsolutePath().toString());
         properties.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, commitIntervalMs);
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
