@@ -59,7 +59,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>com.example.stateful.dbsync.DbSyncApplication</mainClass>
+                    <mainClass>com.example.stateful.dbsync.app.DbSyncApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>
