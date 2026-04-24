@@ -25,12 +25,12 @@ No `processedT`/`processedS` stores are introduced.
 
 ### Allocation sign behavior
 
-`TS` is only emitted when the incoming and candidate open quantities have the same sign.
-
 - Incoming `T` allocates only against `S` with sign-compatible remaining supply.
-- Incoming `S` allocates only against `T` with sign-compatible remaining quantity.
-- Opposite-sign candidates are left untouched in their unprocessed store.
-- An incoming `S` direction (`R`/`D`) does **not** implicitly close opposite-sign `T`; closing a `T` requires an actual emitted `TS`.
+- Incoming `S` has a mandatory direction/sign constraint: `dir=D => q<0`, `dir=R => q>0`.
+- Incoming `S` first force-closes opposite-side `T` and emits `TS` for each full close:
+  - `S.dir=R`: every matching `T` with `q<0` is fully allocated (`T.q_a = T.q`).
+  - `S.dir=D`: every matching `T` with `q>0` is fully allocated (`T.q_a = T.q`).
+- After forced closes, remaining `S` quantity allocates against sign-compatible `T` with normal priority/lottery ordering.
 
 ### DB synchronization events
 

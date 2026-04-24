@@ -54,6 +54,9 @@ S=(id,p,\beta,q,q_{carry},q_a,roll,\theta_S),
 \]
 with $q+q_{carry}\neq 0$ and constraints
 \[
+\big(\theta_S=D \Rightarrow q<0\big),\qquad \big(\theta_S=R \Rightarrow q>0\big),
+\]
+\[
 \operatorname{sgn}(q_a)\in\{0,\operatorname{sgn}(q+q_{carry})\},\qquad |q_a|\le |q+q_{carry}|.
 \]
 A $TS$ record is
@@ -93,13 +96,12 @@ Global parameter: dedupe window $W=14$ days.
 \]
 \end{definition}
 
-\begin{definition}[$q$-sign gate]
+\begin{definition}[$q$-sign gate for standard matching]
 For any candidate pair $(T_i,S_j)$, allocation is admissible only when
 \[
 \operatorname{sgn}(R_T(T_i))=\operatorname{sgn}(R_S(S_j)).
 \]
-Hence positive residuals allocate only with positive residuals, and negative residuals allocate only with negative residuals.
-\emph{Opposite-sign residuals are never allocated to each other in this model.}
+Hence positive residuals allocate only with positive residuals, and negative residuals allocate only with negative residuals during standard matching.
 \end{definition}
 
 \begin{definition}[Signed allocation]
@@ -135,8 +137,8 @@ preserves sign direction and never increases residual magnitude:
 \]
 \end{proposition}
 
-\begin{proposition}[No cross-sign allocation]
-If $\operatorname{sgn}(x)\neq \operatorname{sgn}(y)$ or either value is $0$, then $\mathrm{Alloc}(x,y)=0$. Therefore, opposite-sign quantities never cross-allocate.
+\begin{proposition}[No cross-sign allocation in standard matching]
+If $\operatorname{sgn}(x)\neq \operatorname{sgn}(y)$ or either value is $0$, then $\mathrm{Alloc}(x,y)=0$.
 \end{proposition}
 
 \section{Input Kinds and Transition Function}
@@ -164,14 +166,23 @@ Given incoming $T_{in}$:
 Given incoming $S_{in}$:
 \begin{enumerate}[leftmargin=*]
   \item Emit mutation \texttt{ACCEPTED\_S}.
-  \item Select compatible candidates from $\mathcal{T}_p$ by $\mathrm{Compat}(R_S(S_{in}),R_T(T_i))$.
-  \item Partition candidates into $a=\texttt{FAIL}$ and $a\neq\texttt{FAIL}$ buckets.
+  \item Enforce direction/sign invariant for incoming $S_{in}$: $\theta_S=D \Rightarrow q<0$ and $\theta_S=R \Rightarrow q>0$.
+  \item Force-close opposite-side $T$ candidates and emit one $TS$ per forced close:
+  \[
+  \theta_S=R \Rightarrow \forall T_i\in\mathcal{T}_p \text{ with } q_i<0:\ q_{a,i}\gets q_i;
+  \]
+  \[
+  \theta_S=D \Rightarrow \forall T_i\in\mathcal{T}_p \text{ with } q_i>0:\ q_{a,i}\gets q_i.
+  \]
+  Each such full close emits $TS$ with $q_a^{(TS)}=R_T(T_i)$, and closed $T_i$ are removed from $\mathcal{T}_p$.
+  \item On the remaining $T$ candidates, select compatible candidates by $\mathrm{Compat}(R_S(S_{in}),R_T(T_i))$.
+  \item Partition these candidates into $a=\texttt{FAIL}$ and $a\neq\texttt{FAIL}$ buckets.
   \item Canonically sort by $id$ in each bucket, then apply deterministic shuffle with seed
   \[
   h(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName).
   \]
-  \item Iterate candidates in order; apply same signed allocation update and emit $TS$ for nonzero $\delta$.
-  \item The iteration is exhaustive over all compatible $T$ candidates in that deterministic order; it stops early only if $R_S(S_{in})=0$.
+  \item Iterate candidates in order; apply signed allocation update and emit $TS$ for nonzero $\delta$.
+  \item The iteration is exhaustive over all compatible remaining $T$ candidates in that deterministic order; it stops early only if $R_S(S_{in})=0$.
   \item Forward emitted $TS$ and mutation \texttt{GENERATED\_TS}.
   \item Rewrite $\mathcal{T}_p$ with item-wise upsert/delete mutations.
   \item Keep/remove incoming $S_{in}$ in $\mathcal{S}_p$ with final upsert/delete mutation.

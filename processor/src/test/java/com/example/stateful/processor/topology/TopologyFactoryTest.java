@@ -275,7 +275,7 @@ class TopologyFactoryTest {
 
 
     @Test
-    void incomingRDirectionSDoesNotCloseOppositeSignTWithoutTS() throws Exception {
+    void incomingRDirectionSFullyAllocatesNegativeTAndEmitsTs() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -287,8 +287,12 @@ class TopologyFactoryTest {
             input.pipeInput("IBM", MessageEnvelope.forT(new T("t-neg-2", "IBM", "R-N-2", null, false, -25L, -10L, AStatus.FAIL, TT.S)), t0.plusMillis(1).toEpochMilli());
             input.pipeInput("IBM", MessageEnvelope.forS(new S("s-r", "IBM", 5L, 0L)), t0.plusMillis(2).toEpochMilli());
 
-            assertThat(output.isEmpty()).isTrue();
-            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).hasSize(2);
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).hasSize(2);
+            assertThat(emitted).extracting(v -> v.ts().tid()).containsExactly("t-neg-2", "t-neg-1");
+            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(-15L, -15L);
+
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).isEmpty();
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items().get(0);
             assertThat(openS.id()).isEqualTo("s-r");
             assertThat(openS.q_a()).isZero();
@@ -296,7 +300,7 @@ class TopologyFactoryTest {
     }
 
     @Test
-    void incomingDDirectionSDoesNotCloseOppositeSignTWithoutTS() throws Exception {
+    void incomingDDirectionSFullyAllocatesPositiveTAndEmitsTs() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -308,8 +312,12 @@ class TopologyFactoryTest {
             input.pipeInput("IBM", MessageEnvelope.forT(new T("t-pos-2", "IBM", "R-P-2", false, 40L, 10L)), t0.plusMillis(1).toEpochMilli());
             input.pipeInput("IBM", MessageEnvelope.forS(new S("s-d", "IBM", -5L, 0L)), t0.plusMillis(2).toEpochMilli());
 
-            assertThat(output.isEmpty()).isTrue();
-            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).hasSize(2);
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).hasSize(2);
+            assertThat(emitted).extracting(v -> v.ts().tid()).containsExactlyInAnyOrder("t-pos-1", "t-pos-2");
+            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactlyInAnyOrder(30L, 30L);
+
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).isEmpty();
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items().get(0);
             assertThat(openS.id()).isEqualTo("s-d");
             assertThat(openS.q_a()).isZero();
