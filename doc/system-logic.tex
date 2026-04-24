@@ -99,6 +99,7 @@ For any candidate pair $(T_i,S_j)$, allocation is admissible only when
 \operatorname{sgn}(R_T(T_i))=\operatorname{sgn}(R_S(S_j)).
 \]
 Hence positive residuals allocate only with positive residuals, and negative residuals allocate only with negative residuals.
+\emph{Opposite-sign residuals are never allocated to each other in this model.}
 \end{definition}
 
 \begin{definition}[Signed allocation]
@@ -170,6 +171,7 @@ Given incoming $S_{in}$:
   h(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName).
   \]
   \item Iterate candidates in order; apply same signed allocation update and emit $TS$ for nonzero $\delta$.
+  \item The iteration is exhaustive over all compatible $T$ candidates in that deterministic order; it stops early only if $R_S(S_{in})=0$.
   \item Forward emitted $TS$ and mutation \texttt{GENERATED\_TS}.
   \item Rewrite $\mathcal{T}_p$ with item-wise upsert/delete mutations.
   \item Keep/remove incoming $S_{in}$ in $\mathcal{S}_p$ with final upsert/delete mutation.
