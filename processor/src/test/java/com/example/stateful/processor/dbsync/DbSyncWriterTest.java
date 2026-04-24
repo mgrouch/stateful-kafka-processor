@@ -39,9 +39,9 @@ class DbSyncWriterTest {
     @Test
     void applyBatchCommitsFactsStateAndOffsetAtomically() throws Exception {
         List<ConsumerRecord<String, DbSyncEnvelope>> records = List.of(
-                record(0, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-1", "IBM", "R-1", false, 10L), null, null, 0)),
-                record(1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R-1", false, 10L), null, null, 1)),
-                record(2, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-t-1", "IBM", 10L), 2))
+                record(0, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-1", "IBM", "R-1", false, 10L, 0L), null, null, 0)),
+                record(1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R-1", false, 10L, 0L), null, null, 1)),
+                record(2, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-t-1", "IBM", "t-1", "s-1", 10L), 2))
         );
 
         writer.applyBatch(records);
@@ -64,7 +64,7 @@ class DbSyncWriterTest {
 
     @Test
     void loadOffsetsReturnsPersistedCheckpointForRestart() {
-        writer.applyBatch(List.of(record(5, event(DbSyncMutationType.ACCEPTED_S, "IBM", null, new S("s-1", "IBM", 7L), null, 0))));
+        writer.applyBatch(List.of(record(5, event(DbSyncMutationType.ACCEPTED_S, "IBM", null, new S("s-1", "IBM", 7L, 0L), null, 0))));
 
         Map<TopicPartition, Long> offsets = writer.loadOffsets("db-sync-events", List.of(0));
         assertThat(offsets.get(new TopicPartition("db-sync-events", 0))).isEqualTo(6L);

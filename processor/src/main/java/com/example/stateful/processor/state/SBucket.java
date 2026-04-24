@@ -20,4 +20,8 @@ public record SBucket(List<S> items) {
         copy.add(value);
         return new SBucket(copy);
     }
+
+    public SBucket withItems(List<S> nextItems) {
+        return new SBucket(nextItems);
+    }
 }

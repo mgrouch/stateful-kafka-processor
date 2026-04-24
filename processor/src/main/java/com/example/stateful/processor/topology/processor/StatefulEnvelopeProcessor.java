@@ -23,7 +23,9 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class StatefulEnvelopeProcessor extends ContextualProcessor<String, MessageEnvelope, String, Object> {
 
@@ -66,51 +68,260 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         }
     }
 
-    private void handleT(Record<String, MessageEnvelope> record, String pid, int ordinalStart) {
-        T t = record.value().t();
+    private void handleT(Record<String, MessageEnvelope> record, String pid, int ordinal) {
+        T incomingT = record.value().t();
         long timestamp = eventTimestamp(record);
-        String dedupeKey = buildDedupeKey(t);
+        String dedupeKey = buildDedupeKey(incomingT);
         Long seenAt = tDedupeStore.get(dedupeKey);
 
         if (seenAt != null && timestamp - seenAt <= DEDUPE_WINDOW_MILLIS) {
-            log.info("Skipping duplicate T id={} pid={} dedupeKey={} seenAt={} currentTs={}", t.id(), pid, dedupeKey, seenAt, timestamp);
+            log.info("Skipping duplicate T id={} pid={} dedupeKey={} seenAt={} currentTs={}", incomingT.id(), pid, dedupeKey, seenAt, timestamp);
             return;
         }
 
         tDedupeStore.put(dedupeKey, timestamp);
+        emitDbSync(pid, DbSyncMutationType.ACCEPTED_T, incomingT, null, null, record, ordinal++);
 
-        TBucket current = tStore.get(pid);
-        TBucket updated = (current == null ? TBucket.empty() : current).append(t);
-        tStore.put(pid, updated);
+        List<S> candidates = loadS(pid);
+        AllocationResult allocation = allocateForIncomingT(incomingT, candidates, buildTsIdPrefix(record, "t", incomingT.id()));
 
-        TS ts = new TS("ts-" + t.id(), pid, t.q());
-        MessageEnvelope output = MessageEnvelope.forTS(ts);
+        for (TS ts : allocation.emittedTs()) {
+            emitProcessed(pid, MessageEnvelope.forTS(ts), record.timestamp());
+            emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, ts, record, ordinal++);
+        }
 
-        emitProcessed(pid, output, record.timestamp());
-        emitDbSync(pid, DbSyncMutationType.ACCEPTED_T, t, null, null, record, ordinalStart);
-        emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, t, null, null, record, ordinalStart + 1);
-        emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, ts, record, ordinalStart + 2);
+        persistUpdatedS(pid, allocation.updatedS(), record, new OrdinalRef(ordinal));
+        ordinal = ordinal + allocation.updatedS().size();
 
-        log.info("Stored T id={} pid={} ref={} cancel={}", t.id(), pid, t.ref(), t.cancel());
+        if (isOpen(allocation.updatedIncomingT())) {
+            upsertT(pid, allocation.updatedIncomingT());
+            emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, allocation.updatedIncomingT(), null, null, record, ordinal);
+        } else {
+            removeT(pid, allocation.updatedIncomingT().id());
+            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, null, null, null, record, ordinal);
+        }
+
+        log.info("Processed T id={} pid={} q={} q_a={}", allocation.updatedIncomingT().id(), pid, allocation.updatedIncomingT().q(), allocation.updatedIncomingT().q_a());
     }
 
-    private void handleS(Record<String, MessageEnvelope> record, String pid, int ordinalStart) {
-        S s = record.value().s();
+    private void handleS(Record<String, MessageEnvelope> record, String pid, int ordinal) {
+        S incomingS = record.value().s();
+        emitDbSync(pid, DbSyncMutationType.ACCEPTED_S, null, incomingS, null, record, ordinal++);
 
-        SBucket current = sStore.get(pid);
-        SBucket updated = (current == null ? SBucket.empty() : current).append(s);
-        sStore.put(pid, updated);
+        List<T> candidates = loadT(pid);
+        AllocationResult allocation = allocateForIncomingS(candidates, incomingS, buildTsIdPrefix(record, "s", incomingS.id()));
 
-        emitDbSync(pid, DbSyncMutationType.ACCEPTED_S, null, s, null, record, ordinalStart);
-        emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_S, null, s, null, record, ordinalStart + 1);
+        for (TS ts : allocation.emittedTs()) {
+            emitProcessed(pid, MessageEnvelope.forTS(ts), record.timestamp());
+            emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, ts, record, ordinal++);
+        }
 
-        log.info("Stored S id={} pid={} at {}", s.id(), pid, Instant.ofEpochMilli(record.timestamp()));
+        persistUpdatedT(pid, allocation.updatedT(), record, new OrdinalRef(ordinal));
+        ordinal = ordinal + allocation.updatedT().size();
+
+        if (isOpen(allocation.updatedIncomingS())) {
+            upsertS(pid, allocation.updatedIncomingS());
+            emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_S, null, allocation.updatedIncomingS(), null, record, ordinal);
+        } else {
+            removeS(pid, allocation.updatedIncomingS().id());
+            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_S, null, null, null, record, ordinal);
+        }
+
+        log.info("Processed S id={} pid={} q={} q_a={}", allocation.updatedIncomingS().id(), pid, allocation.updatedIncomingS().q(), allocation.updatedIncomingS().q_a());
     }
 
     private void handleTs(Record<String, MessageEnvelope> record, String pid, int ordinalStart) {
         log.info("Forwarding TS id={} pid={}", record.value().ts().id(), pid);
         emitProcessed(pid, record.value(), record.timestamp());
         emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, record.value().ts(), record, ordinalStart);
+    }
+
+    private AllocationResult allocateForIncomingT(T incomingT, List<S> candidates, String idPrefix) {
+        requireSamePid(candidates.stream().map(S::pid).toList(), incomingT.pid(), "S candidate");
+
+        List<S> updatedS = new ArrayList<>();
+        List<TS> emitted = new ArrayList<>();
+        T updatedT = incomingT;
+        int tsIndex = 0;
+
+        for (S candidate : candidates) {
+            long tRemaining = remaining(updatedT.q(), updatedT.q_a());
+            long sRemaining = remaining(candidate.q(), candidate.q_a());
+            long allocated = Math.min(tRemaining, sRemaining);
+
+            if (allocated > 0) {
+                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.cancel(), updatedT.q(), updatedT.q_a() + allocated);
+                S nextS = new S(candidate.id(), candidate.pid(), candidate.q(), candidate.q_a() + allocated);
+                updatedS.add(nextS);
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), allocated));
+            } else {
+                updatedS.add(candidate);
+            }
+        }
+
+        validateAllocationOutput(updatedT.pid(), List.of(updatedT), updatedS, emitted);
+        return new AllocationResult(updatedT, updatedS, emitted);
+    }
+
+    private AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
+        requireSamePid(candidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
+
+        List<T> updatedT = new ArrayList<>();
+        List<TS> emitted = new ArrayList<>();
+        S updatedS = incomingS;
+        int tsIndex = 0;
+
+        for (T candidate : candidates) {
+            long sRemaining = remaining(updatedS.q(), updatedS.q_a());
+            long tRemaining = remaining(candidate.q(), candidate.q_a());
+            long allocated = Math.min(tRemaining, sRemaining);
+
+            if (allocated > 0) {
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.cancel(), candidate.q(), candidate.q_a() + allocated);
+                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.q(), updatedS.q_a() + allocated);
+                updatedT.add(nextT);
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), allocated));
+            } else {
+                updatedT.add(candidate);
+            }
+        }
+
+        validateAllocationOutput(updatedS.pid(), updatedT, List.of(updatedS), emitted);
+        return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
+    }
+
+    private void validateAllocationOutput(String pid, List<T> allowedT, List<S> allowedS, List<TS> emittedTs) {
+        Set<String> allowedTid = new HashSet<>();
+        Set<String> allowedSid = new HashSet<>();
+        for (T t : allowedT) {
+            if (!pid.equals(t.pid())) {
+                throw new IllegalStateException("allocate output has T with different pid");
+            }
+            if (t.q_a() < 0 || t.q_a() > t.q()) {
+                throw new IllegalStateException("allocate output has T q_a outside [0,q]");
+            }
+            allowedTid.add(t.id());
+        }
+        for (S s : allowedS) {
+            if (!pid.equals(s.pid())) {
+                throw new IllegalStateException("allocate output has S with different pid");
+            }
+            if (s.q_a() < 0 || s.q_a() > s.q()) {
+                throw new IllegalStateException("allocate output has S q_a outside [0,q]");
+            }
+            allowedSid.add(s.id());
+        }
+
+        for (TS ts : emittedTs) {
+            if (!pid.equals(ts.pid())) {
+                throw new IllegalStateException("allocate output has TS with different pid");
+            }
+            if (ts.q_a() <= 0) {
+                throw new IllegalStateException("allocate output has TS q_a <= 0");
+            }
+            if (!allowedTid.contains(ts.tid())) {
+                throw new IllegalStateException("allocate output references unknown TS.tid " + ts.tid());
+            }
+            if (!allowedSid.contains(ts.sid())) {
+                throw new IllegalStateException("allocate output references unknown TS.sid " + ts.sid());
+            }
+        }
+    }
+
+    private void persistUpdatedS(String pid, List<S> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
+        List<S> open = new ArrayList<>();
+        for (S s : updatedCandidates) {
+            if (!pid.equals(s.pid())) {
+                throw new IllegalStateException("Updated S pid mismatch");
+            }
+            if (isOpen(s)) {
+                open.add(s);
+                emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_S, null, s, null, record, ordinal.next());
+            } else {
+                emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_S, null, null, null, record, ordinal.next());
+            }
+        }
+        sStore.put(pid, new SBucket(open));
+    }
+
+    private void persistUpdatedT(String pid, List<T> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
+        List<T> open = new ArrayList<>();
+        for (T t : updatedCandidates) {
+            if (!pid.equals(t.pid())) {
+                throw new IllegalStateException("Updated T pid mismatch");
+            }
+            if (isOpen(t)) {
+                open.add(t);
+                emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, t, null, null, record, ordinal.next());
+            } else {
+                emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, null, null, null, record, ordinal.next());
+            }
+        }
+        tStore.put(pid, new TBucket(open));
+    }
+
+    private List<S> loadS(String pid) {
+        SBucket bucket = sStore.get(pid);
+        return bucket == null ? List.of() : bucket.items();
+    }
+
+    private List<T> loadT(String pid) {
+        TBucket bucket = tStore.get(pid);
+        return bucket == null ? List.of() : bucket.items();
+    }
+
+    private void upsertT(String pid, T value) {
+        List<T> next = new ArrayList<>();
+        boolean replaced = false;
+        for (T t : loadT(pid)) {
+            if (t.id().equals(value.id())) {
+                next.add(value);
+                replaced = true;
+            } else {
+                next.add(t);
+            }
+        }
+        if (!replaced) {
+            next.add(value);
+        }
+        tStore.put(pid, new TBucket(next));
+    }
+
+    private void removeT(String pid, String id) {
+        List<T> next = new ArrayList<>();
+        for (T t : loadT(pid)) {
+            if (!t.id().equals(id)) {
+                next.add(t);
+            }
+        }
+        tStore.put(pid, new TBucket(next));
+    }
+
+    private void upsertS(String pid, S value) {
+        List<S> next = new ArrayList<>();
+        boolean replaced = false;
+        for (S s : loadS(pid)) {
+            if (s.id().equals(value.id())) {
+                next.add(value);
+                replaced = true;
+            } else {
+                next.add(s);
+            }
+        }
+        if (!replaced) {
+            next.add(value);
+        }
+        sStore.put(pid, new SBucket(next));
+    }
+
+    private void removeS(String pid, String id) {
+        List<S> next = new ArrayList<>();
+        for (S s : loadS(pid)) {
+            if (!s.id().equals(id)) {
+                next.add(s);
+            }
+        }
+        sStore.put(pid, new SBucket(next));
     }
 
     private void emitProcessed(String pid, MessageEnvelope value, long timestamp) {
@@ -148,6 +359,12 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         return metadata.topic() + "-" + metadata.partition() + "-" + metadata.offset() + "-" + ordinal + "-" + mutationType;
     }
 
+    private String buildTsIdPrefix(Record<String, MessageEnvelope> record, String kind, String id) {
+        RecordMetadata metadata = context().recordMetadata()
+                .orElseThrow(() -> new IllegalStateException("Record metadata is required for TS IDs"));
+        return "ts-" + kind + "-" + id + "-" + metadata.partition() + "-" + metadata.offset();
+    }
+
     private long eventTimestamp(Record<String, MessageEnvelope> record) {
         return record.timestamp() >= 0 ? record.timestamp() : context().currentSystemTimeMs();
     }
@@ -175,6 +392,57 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
         if (!toDelete.isEmpty()) {
             log.info("Evicted {} expired dedupe keys older than {}", toDelete.size(), cutoff);
+        }
+    }
+
+    private static void requireSamePid(List<String> pids, String expectedPid, String entityName) {
+        for (String pid : pids) {
+            if (!expectedPid.equals(pid)) {
+                throw new IllegalArgumentException(entityName + " pid mismatch");
+            }
+        }
+    }
+
+    private static boolean isOpen(T t) {
+        return t.q_a() < t.q();
+    }
+
+    private static boolean isOpen(S s) {
+        return s.q_a() < s.q();
+    }
+
+    private static long remaining(long q, long qA) {
+        long remaining = q - qA;
+        return Math.max(remaining, 0);
+    }
+
+    private record AllocationResult(
+            T updatedIncomingT,
+            List<S> updatedS,
+            S updatedIncomingS,
+            List<T> updatedT,
+            List<TS> emittedTs
+    ) {
+        private AllocationResult {
+            updatedS = List.copyOf(updatedS);
+            updatedT = List.copyOf(updatedT);
+            emittedTs = List.copyOf(emittedTs);
+        }
+
+        private AllocationResult(T updatedIncomingT, List<S> updatedS, List<TS> emittedTs) {
+            this(updatedIncomingT, updatedS, null, List.of(), emittedTs);
+        }
+    }
+
+    private static final class OrdinalRef {
+        private int current;
+
+        private OrdinalRef(int start) {
+            this.current = start;
+        }
+
+        private int next() {
+            return current++;
         }
     }
 }

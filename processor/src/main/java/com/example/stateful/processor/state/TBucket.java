@@ -20,4 +20,8 @@ public record TBucket(List<T> items) {
         copy.add(value);
         return new TBucket(copy);
     }
+
+    public TBucket withItems(List<T> nextItems) {
+        return new TBucket(nextItems);
+    }
 }

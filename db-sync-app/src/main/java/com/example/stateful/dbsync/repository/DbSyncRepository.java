@@ -80,7 +80,8 @@ public final class DbSyncRepository {
                 statement.setString(3, event.t().ref());
                 statement.setBoolean(4, event.t().cancel());
                 statement.setLong(5, event.t().q());
-                setSource(statement, event, 6);
+                statement.setLong(6, event.t().q_a());
+                setSource(statement, event, 7);
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -90,7 +91,8 @@ public final class DbSyncRepository {
                 statement.setString(1, event.s().id());
                 statement.setString(2, event.pid());
                 statement.setLong(3, event.s().q());
-                setSource(statement, event, 4);
+                statement.setLong(4, event.s().q_a());
+                setSource(statement, event, 5);
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -99,8 +101,10 @@ public final class DbSyncRepository {
             for (DbSyncEnvelope event : batch.generatedTs()) {
                 statement.setString(1, event.ts().id());
                 statement.setString(2, event.pid());
-                statement.setLong(3, event.ts().q());
-                setSource(statement, event, 4);
+                statement.setString(3, event.ts().tid());
+                statement.setString(4, event.ts().sid());
+                statement.setLong(5, event.ts().q_a());
+                setSource(statement, event, 6);
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -112,7 +116,8 @@ public final class DbSyncRepository {
                 statement.setString(3, event.t().ref());
                 statement.setBoolean(4, event.t().cancel());
                 statement.setLong(5, event.t().q());
-                setSource(statement, event, 6);
+                statement.setLong(6, event.t().q_a());
+                setSource(statement, event, 7);
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -122,7 +127,8 @@ public final class DbSyncRepository {
                 statement.setString(1, event.pid());
                 statement.setString(2, event.s().id());
                 statement.setLong(3, event.s().q());
-                setSource(statement, event, 4);
+                statement.setLong(4, event.s().q_a());
+                setSource(statement, event, 5);
                 statement.addBatch();
             }
             statement.executeBatch();

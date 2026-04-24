@@ -153,9 +153,9 @@ public final class DbSyncWriter implements SmartLifecycle {
 
     private void upsertAcceptedT(Connection connection, DbSyncEnvelope event) throws SQLException {
         String sql = """
-                MERGE INTO accepted_t (id, pid, ref, cancel, q, source_topic, source_partition, source_offset, source_timestamp, event_id)
+                MERGE INTO accepted_t (id, pid, ref, cancel, q, q_a, source_topic, source_partition, source_offset, source_timestamp, event_id)
                 KEY (id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, event.t().id());
@@ -163,46 +163,50 @@ public final class DbSyncWriter implements SmartLifecycle {
             statement.setString(3, event.t().ref());
             statement.setBoolean(4, event.t().cancel());
             statement.setLong(5, event.t().q());
-            setSourceColumns(statement, event, 6);
+            statement.setLong(6, event.t().q_a());
+            setSourceColumns(statement, event, 7);
             statement.executeUpdate();
         }
     }
 
     private void upsertAcceptedS(Connection connection, DbSyncEnvelope event) throws SQLException {
         String sql = """
-                MERGE INTO accepted_s (id, pid, q, source_topic, source_partition, source_offset, source_timestamp, event_id)
+                MERGE INTO accepted_s (id, pid, q, q_a, source_topic, source_partition, source_offset, source_timestamp, event_id)
                 KEY (id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, event.s().id());
             statement.setString(2, event.pid());
             statement.setLong(3, event.s().q());
-            setSourceColumns(statement, event, 4);
+            statement.setLong(4, event.s().q_a());
+            setSourceColumns(statement, event, 5);
             statement.executeUpdate();
         }
     }
 
     private void upsertGeneratedTs(Connection connection, DbSyncEnvelope event) throws SQLException {
         String sql = """
-                MERGE INTO generated_ts (id, pid, q, source_topic, source_partition, source_offset, source_timestamp, event_id)
+                MERGE INTO generated_ts (id, pid, tid, sid, q_a, source_topic, source_partition, source_offset, source_timestamp, event_id)
                 KEY (id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, event.ts().id());
             statement.setString(2, event.pid());
-            statement.setLong(3, event.ts().q());
-            setSourceColumns(statement, event, 4);
+            statement.setString(3, event.ts().tid());
+            statement.setString(4, event.ts().sid());
+            statement.setLong(5, event.ts().q_a());
+            setSourceColumns(statement, event, 6);
             statement.executeUpdate();
         }
     }
 
     private void upsertUnprocessedT(Connection connection, DbSyncEnvelope event) throws SQLException {
         String sql = """
-                MERGE INTO unprocessed_t_state (pid, t_id, ref, cancel, q, source_topic, source_partition, source_offset, source_timestamp, event_id)
+                MERGE INTO unprocessed_t_state (pid, t_id, ref, cancel, q, q_a, source_topic, source_partition, source_offset, source_timestamp, event_id)
                 KEY (pid)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, event.pid());
@@ -210,22 +214,24 @@ public final class DbSyncWriter implements SmartLifecycle {
             statement.setString(3, event.t().ref());
             statement.setBoolean(4, event.t().cancel());
             statement.setLong(5, event.t().q());
-            setSourceColumns(statement, event, 6);
+            statement.setLong(6, event.t().q_a());
+            setSourceColumns(statement, event, 7);
             statement.executeUpdate();
         }
     }
 
     private void upsertUnprocessedS(Connection connection, DbSyncEnvelope event) throws SQLException {
         String sql = """
-                MERGE INTO unprocessed_s_state (pid, s_id, q, source_topic, source_partition, source_offset, source_timestamp, event_id)
+                MERGE INTO unprocessed_s_state (pid, s_id, q, q_a, source_topic, source_partition, source_offset, source_timestamp, event_id)
                 KEY (pid)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, event.pid());
             statement.setString(2, event.s().id());
             statement.setLong(3, event.s().q());
-            setSourceColumns(statement, event, 4);
+            statement.setLong(4, event.s().q_a());
+            setSourceColumns(statement, event, 5);
             statement.executeUpdate();
         }
     }
