@@ -39,14 +39,16 @@ class KafkaProcessorIT {
         String inputTopic = "input-events-" + suffix;
         String outputTopic = "processed-events-" + suffix;
         String applicationId = "stateful-it-" + suffix;
+        String dbSyncTopic = "db-sync-events-" + suffix;
 
-        createTopics(inputTopic, outputTopic);
+        createTopics(inputTopic, outputTopic, dbSyncTopic);
 
         try (ConfigurableApplicationContext context = ProcessorApplication.createApplication().run(
                 "--spring.kafka.bootstrap-servers=" + BOOTSTRAP,
                 "--app.application-id=" + applicationId,
                 "--app.input-topic=" + inputTopic,
                 "--app.output-topic=" + outputTopic,
+                "--app.db-sync-topic=" + dbSyncTopic,
                 "--app.state-dir=" + Files.createTempDirectory("stateful-it-state"),
                 "--app.commit-interval-ms=100"
         )) {
@@ -83,14 +85,15 @@ class KafkaProcessorIT {
         }
     }
 
-    private static void createTopics(String inputTopic, String outputTopic) throws Exception {
+    private static void createTopics(String inputTopic, String outputTopic, String dbSyncTopic) throws Exception {
         Properties properties = new Properties();
         properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
 
         try (AdminClient admin = AdminClient.create(properties)) {
             admin.createTopics(List.of(
                     new NewTopic(inputTopic, 3, (short) 1),
-                    new NewTopic(outputTopic, 3, (short) 1)
+                    new NewTopic(outputTopic, 3, (short) 1),
+                    new NewTopic(dbSyncTopic, 3, (short) 1)
             )).all().get();
         } catch (ExecutionException executionException) {
             if (!(executionException.getCause() instanceof TopicExistsException)) {

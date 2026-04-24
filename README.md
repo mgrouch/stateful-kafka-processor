@@ -1,132 +1,126 @@
 # Stateful Kafka Streams Processor
 
-This repository contains a Java 17, Maven, Spring Boot, multi-module project for a **DSF-style stateful data processor** built on **Kafka Streams**.
+Java 17 + Spring Boot + Kafka Streams multi-module project with an explicit Kafka-driven SQL synchronization contract.
 
 ## Modules
 
 - `domain-model`: domain records `T`, `S`, `TS`
-- `messaging-model`: `MessageEnvelope` and `MessageKind`
-- `processor`: Spring Boot application, Kafka Streams topology, state stores, tests, Docker Compose, and CI
+- `messaging-model`: `MessageEnvelope`, `DbSyncEnvelope`, and mutation enums
+- `processor`: Kafka Streams topology, state stores, and SQL db-sync writer
 
-## What it does today
+## Runtime behavior
 
-- Reads `MessageEnvelope` records from topic `input-events`
-- Uses `pid` as the logical partition key for state and output. Producers should publish to `input-events` with Kafka record key = `pid` for strict per-`pid` ordering.
-- Keeps two persistent Kafka Streams state stores:
-  - `unprocessed-t-store`
-  - `unprocessed-s-store`
-- On `T` input:
-  - stores the `T` in `unprocessed-t-store`
-  - emits a derived `TS` to `processed-events`
-- On `S` input:
-  - stores the `S` in `unprocessed-s-store`
-- On `TS` input:
-  - forwards the `TS` envelope to `processed-events`
+Input topic: `input-events` (key = `pid`)  
+Output topics:
+- `processed-events` (business output)
+- `db-sync-events` (explicit DB mutation stream)
 
-## Why Kafka Streams is a good fit
+State stores remain processing-only:
+- `unprocessed-t-store`
+- `unprocessed-s-store`
+- `t-dedupe-store`
 
-Yes, this is a good fit for Kafka Streams for the workflow you described:
+No `processedT` / `processedS` stores are introduced.
 
-- partition-by-`pid` processing is natural because Kafka preserves order within a partition
-- local state stores plus changelog topics give you crash recovery and state restoration
-- exactly-once read-process-write is supported through `exactly_once_v2`
-- later matching logic between `T` and `S` can stay in the same stateful processor
-- later SQL copy is typically done with a separate consumer, Kafka Connect JDBC sink, or another downstream processor
+### Per-input mutation emission
 
-## Build
+For accepted `T` input:
+1. `ACCEPTED_T`
+2. `UPSERT_UNPROCESSED_T`
+3. `GENERATED_TS`
 
-From the repository root:
+For accepted `S` input:
+1. `ACCEPTED_S`
+2. `UPSERT_UNPROCESSED_S`
+
+Each `DbSyncEnvelope` carries:
+- mutation type
+- `pid`
+- payload (`T` / `S` / `TS`)
+- source topic / partition / offset / timestamp
+- per-input ordinal
+- deterministic `eventId`
+
+## Why `db-sync-events` instead of Kafka Streams internal changelog topics
+
+Internal changelog topics are implementation details of Kafka Streams state stores. They are not a stable, user-owned contract for external systems.
+
+`db-sync-events` is explicit and domain-level:
+- owned by your application
+- evolvable schema
+- deterministic mutation semantics for DB writes
+- decoupled from store internals and RocksDB/changelog mechanics
+
+## Kafka-side atomicity
+
+Kafka Streams is still configured with `processing.guarantee=exactly_once_v2`.
+
+For each consumed input record, the topology atomically commits:
+- state store/changelog updates
+- `processed-events` writes
+- `db-sync-events` writes
+- input offset progression
+
+That preserves the original Kafka-side exactly-once read-process-write guarantees.
+
+## DB sync writer design
+
+`DbSyncWriter` is a separate plain Kafka consumer (auto-commit disabled) that consumes `db-sync-events` in partition order and writes into SQL.
+
+Pattern:
+1. Poll db-sync records.
+2. Group records by original source input (`sourceTopic/sourcePartition/sourceOffset`).
+3. Open SQL transaction.
+4. Apply all grouped row mutations.
+5. Upsert consumed Kafka offset (`kafka_consumer_offsets`) in the same SQL transaction.
+6. Commit.
+
+On restart, the writer:
+- reads offsets from `kafka_consumer_offsets`
+- assigns topic partitions
+- seeks to DB-stored offsets
+
+This makes DB mutations and consumption position move atomically together.
+
+## Minimal SQL schema
+
+Managed by `JdbcDbSyncSqlRepository.initializeSchema()`:
+- `accepted_t`
+- `accepted_s`
+- `generated_ts`
+- `unprocessed_t_state`
+- `unprocessed_s_state`
+- `kafka_consumer_offsets`
+- `db_sync_applied_events` (idempotency ledger)
+
+## Guarantees and non-guarantees
+
+### Guarantees
+- Per Kafka partition / per `pid` ordering is preserved.
+- For one input event, all related DB mutations commit together with offset checkpoint.
+- DB may lag Kafka but will converge consistently.
+
+### Non-guarantees
+- No global total order across partitions.
+- No cross-partition atomic transaction semantics.
+
+## Build and test
 
 ```bash
 mvn clean verify
 ```
 
-Run integration tests against Kafka:
+## Run processor
 
 ```bash
-docker compose up -d kafka
-mvn verify -Prun-kafka-it
+mvn -pl processor spring-boot:run \
+  -Dspring-boot.run.arguments="--spring.kafka.bootstrap-servers=localhost:9092 --app.application-id=stateful-data-processor --app.input-topic=input-events --app.output-topic=processed-events --app.db-sync-topic=db-sync-events"
 ```
 
-## Run locally
+## Optional DB writer runtime flags
 
-Start Kafka:
+- `--app.db-writer.enabled=true`
+- `--app.db-writer.consumer-group=db-sync-writer`
+- `--app.db-writer.poll-timeout-ms=500`
 
-```bash
-docker compose up -d kafka
-```
-
-Run the processor:
-
-```bash
-mvn -pl processor spring-boot:run   -Dspring-boot.run.arguments="--spring.kafka.bootstrap-servers=localhost:9092 --app.application-id=stateful-data-processor --app.input-topic=input-events --app.output-topic=processed-events"
-```
-
-## Topics
-
-Create topics manually if needed:
-
-```bash
-docker exec -it $(docker compose ps -q kafka) /opt/kafka/bin/kafka-topics.sh   --bootstrap-server localhost:9092   --create --topic input-events --partitions 3 --replication-factor 1
-
-docker exec -it $(docker compose ps -q kafka) /opt/kafka/bin/kafka-topics.sh   --bootstrap-server localhost:9092   --create --topic processed-events --partitions 3 --replication-factor 1
-```
-
-## Message format
-
-Example `T` envelope:
-
-```json
-{
-  "kind": "T",
-  "t": {
-    "id": "t-100",
-    "pid": "IBM",
-    "q": 1000
-  }
-}
-```
-
-Example `S` envelope:
-
-```json
-{
-  "kind": "S",
-  "s": {
-    "id": "s-100",
-    "pid": "IBM",
-    "q": 600
-  }
-}
-```
-
-Example emitted `TS` envelope:
-
-```json
-{
-  "kind": "TS",
-  "ts": {
-    "id": "ts-t-100",
-    "pid": "IBM",
-    "q": 1000
-  }
-}
-```
-
-## Exactly-once and ordering
-
-This project configures Kafka Streams with:
-
-- `processing.guarantee=exactly_once_v2`
-- `num.stream.threads=1`
-- persistent RocksDB-backed state stores
-
-Ordering is guaranteed **within each partition**, which is the normal Kafka model. To preserve strict per-`pid` ordering on the input side, producers should write to `input-events` with Kafka record key = `pid`. The processor writes output with key = `pid`.
-
-## Later SQL copy
-
-When you are ready to copy processor state and processed events into SQL with delay, the normal approach is to keep the Kafka Streams processor unchanged and add one of these downstream patterns:
-
-- Kafka Connect JDBC sink for `processed-events`
-- a dedicated consumer that writes to SQL
-- a compacted changelog topic or dedicated snapshot topic for derived state, then sink that to SQL
+Also configure a JDBC datasource (`spring.datasource.*`) for your SQL database.

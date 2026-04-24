@@ -1,6 +1,9 @@
 package com.example.stateful.processor;
 
+import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
+import com.example.stateful.messaging.DbSyncEnvelope;
+import com.example.stateful.messaging.DbSyncMutationType;
 import com.example.stateful.messaging.MessageEnvelope;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,37 +18,90 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TopologyFactoryTest {
 
     @Test
-    void tDeduplicationUsesPidRefCancelWithTwoWeekWindow() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.findAndRegisterModules();
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
-        SerdeFactory serdeFactory = new SerdeFactory(mapper);
-        ProcessorSettings settings = new ProcessorSettings(
-                "dummy:9092",
-                "topology-test-app",
-                "input-events",
-                "processed-events",
-                Files.createTempDirectory("streams-test-state"),
-                100
-        );
+    void tInputEmitsProcessedAndDbSyncEventsInStableOrder() throws Exception {
+        SerdeFactory serdeFactory = serdeFactory();
+        ProcessorSettings settings = settings("topology-test-app");
 
         Topology topology = TopologyFactory.create(settings, serdeFactory);
-        Properties properties = settings.toStreamsProperties();
-        properties.put("bootstrap.servers", "dummy:9092");
+
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+        try (TopologyTestDriver driver = new TopologyTestDriver(topology, settings.toStreamsProperties(), t0)) {
+            TestInputTopic<String, MessageEnvelope> inputTopic = driver.createInputTopic(
+                    settings.inputTopic(),
+                    Serdes.String().serializer(),
+                    serdeFactory.envelopeSerde().serializer()
+            );
+            TestOutputTopic<String, MessageEnvelope> outputTopic = driver.createOutputTopic(
+                    settings.outputTopic(),
+                    Serdes.String().deserializer(),
+                    serdeFactory.envelopeSerde().deserializer()
+            );
+            TestOutputTopic<String, DbSyncEnvelope> dbSyncTopic = driver.createOutputTopic(
+                    settings.dbSyncTopic(),
+                    Serdes.String().deserializer(),
+                    serdeFactory.dbSyncEnvelopeSerde().deserializer()
+            );
+
+            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 100L)), t0.toEpochMilli());
+
+            assertThat(outputTopic.readValue().ts().id()).isEqualTo("ts-t-1");
+            assertThat(dbSyncTopic.readValuesToList())
+                    .extracting(DbSyncEnvelope::mutationType)
+                    .containsExactly(
+                            DbSyncMutationType.ACCEPTED_T,
+                            DbSyncMutationType.UPSERT_UNPROCESSED_T,
+                            DbSyncMutationType.GENERATED_TS
+                    );
+            assertThat(dbSyncTopic.readValuesToList()).isEmpty();
+        }
+    }
+
+    @Test
+    void sInputEmitsAcceptedAndUpsertStateDbSyncEvents() throws Exception {
+        SerdeFactory serdeFactory = serdeFactory();
+        ProcessorSettings settings = settings("topology-test-app-s");
+
+        Topology topology = TopologyFactory.create(settings, serdeFactory);
+
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+        try (TopologyTestDriver driver = new TopologyTestDriver(topology, settings.toStreamsProperties(), t0)) {
+            TestInputTopic<String, MessageEnvelope> inputTopic = driver.createInputTopic(
+                    settings.inputTopic(),
+                    Serdes.String().serializer(),
+                    serdeFactory.envelopeSerde().serializer()
+            );
+            TestOutputTopic<String, DbSyncEnvelope> dbSyncTopic = driver.createOutputTopic(
+                    settings.dbSyncTopic(),
+                    Serdes.String().deserializer(),
+                    serdeFactory.dbSyncEnvelopeSerde().deserializer()
+            );
+
+            inputTopic.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 55L)), t0.toEpochMilli());
+
+            assertThat(dbSyncTopic.readValuesToList())
+                    .extracting(DbSyncEnvelope::mutationType)
+                    .containsExactly(DbSyncMutationType.ACCEPTED_S, DbSyncMutationType.UPSERT_UNPROCESSED_S);
+        }
+    }
+
+    @Test
+    void tDeduplicationUsesPidRefCancelWithTwoWeekWindow() throws Exception {
+        SerdeFactory serdeFactory = serdeFactory();
+        ProcessorSettings settings = settings("topology-test-app-dedupe");
+
+        Topology topology = TopologyFactory.create(settings, serdeFactory);
 
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
         long withinWindow = t0.plus(Duration.ofDays(13)).toEpochMilli();
         long outsideWindow = t0.plus(Duration.ofDays(15)).toEpochMilli();
 
-        try (TopologyTestDriver driver = new TopologyTestDriver(topology, properties, t0)) {
+        try (TopologyTestDriver driver = new TopologyTestDriver(topology, settings.toStreamsProperties(), t0)) {
             TestInputTopic<String, MessageEnvelope> inputTopic = driver.createInputTopic(
                     settings.inputTopic(),
                     Serdes.String().serializer(),
@@ -63,70 +119,43 @@ class TopologyFactoryTest {
             inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-2", "IBM", "R-1", false, 101L)), withinWindow);
             inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-3", "IBM", "R-1", false, 102L)), outsideWindow);
 
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-4", "IBM", "R-2", false, 103L)), withinWindow);
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-5", "IBM", "R-1", true, 104L)), withinWindow);
-            inputTopic.pipeInput("MSFT", MessageEnvelope.forT(new T("t-6", "MSFT", "R-1", false, 105L)), withinWindow);
-
             assertThat(outputTopic.readKeyValuesToList())
                     .extracting(kv -> kv.key, kv -> kv.value.ts().id())
                     .containsExactly(
                             org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-1"),
-                            org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-3"),
-                            org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-4"),
-                            org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-5"),
-                            org.assertj.core.groups.Tuple.tuple("MSFT", "ts-t-6")
+                            org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-3")
                     );
 
             KeyValueStore<String, TBucket> tStore = driver.getKeyValueStore(StateStoresConfig.UNPROCESSED_T_STORE);
-            KeyValueStore<String, Long> dedupeStore = driver.getKeyValueStore(StateStoresConfig.T_DEDUPE_STORE);
-
-            assertThat(tStore.get("IBM").items()).extracting(T::id).containsExactly("t-1", "t-3", "t-4", "t-5");
-            assertThat(tStore.get("MSFT").items()).extracting(T::id).containsExactly("t-6");
-
-            assertThat(dedupeStore.get("IBM|R-1|false")).isEqualTo(outsideWindow);
-            assertThat(dedupeStore.get("IBM|R-2|false")).isEqualTo(withinWindow);
-            assertThat(dedupeStore.get("IBM|R-1|true")).isEqualTo(withinWindow);
-            assertThat(dedupeStore.get("MSFT|R-1|false")).isEqualTo(withinWindow);
+            assertThat(tStore.get("IBM").items()).extracting(T::id).containsExactly("t-1", "t-3");
         }
     }
 
     @Test
-    void dedupeStoreIsCleanedUpAfterWindowViaStreamTimePunctuation() throws Exception {
+    void topologyContainsOnlyProcessingStateStores() throws Exception {
+        Topology topology = TopologyFactory.create(settings("topology-test-app-stores"), serdeFactory());
+        String description = TopologyFactory.describe(topology);
+
+        assertThat(description).contains(StateStoresConfig.UNPROCESSED_T_STORE, StateStoresConfig.UNPROCESSED_S_STORE, StateStoresConfig.T_DEDUPE_STORE);
+        assertThat(description).doesNotContain("processedT").doesNotContain("processedS");
+    }
+
+    private static SerdeFactory serdeFactory() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.findAndRegisterModules();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        return new SerdeFactory(mapper);
+    }
 
-        SerdeFactory serdeFactory = new SerdeFactory(mapper);
-        ProcessorSettings settings = new ProcessorSettings(
+    private static ProcessorSettings settings(String appId) throws Exception {
+        return new ProcessorSettings(
                 "dummy:9092",
-                "topology-test-app-cleanup",
+                appId,
                 "input-events",
                 "processed-events",
-                Files.createTempDirectory("streams-test-state-cleanup"),
+                "db-sync-events",
+                Files.createTempDirectory("streams-test-state"),
                 100
         );
-
-        Topology topology = TopologyFactory.create(settings, serdeFactory);
-        Properties properties = settings.toStreamsProperties();
-        properties.put("bootstrap.servers", "dummy:9092");
-
-        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
-        long oldTs = t0.toEpochMilli();
-        long triggerCleanupTs = t0.plus(Duration.ofDays(16)).toEpochMilli();
-
-        try (TopologyTestDriver driver = new TopologyTestDriver(topology, properties, t0)) {
-            TestInputTopic<String, MessageEnvelope> inputTopic = driver.createInputTopic(
-                    settings.inputTopic(),
-                    Serdes.String().serializer(),
-                    serdeFactory.envelopeSerde().serializer()
-            );
-
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 100L)), oldTs);
-            inputTopic.pipeInput("GOOG", MessageEnvelope.forT(new T("t-2", "GOOG", "R-9", false, 110L)), triggerCleanupTs);
-
-            KeyValueStore<String, Long> dedupeStore = driver.getKeyValueStore(StateStoresConfig.T_DEDUPE_STORE);
-            assertThat(dedupeStore.get("IBM|R-1|false")).isNull();
-            assertThat(dedupeStore.get("GOOG|R-9|false")).isEqualTo(triggerCleanupTs);
-        }
     }
 }

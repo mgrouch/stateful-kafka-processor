@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
 
 import java.util.Map;
@@ -26,9 +25,12 @@ public final class ProcessorApplication {
                 "app.application-id", "stateful-data-processor",
                 "app.input-topic", "input-events",
                 "app.output-topic", "processed-events",
+                "app.db-sync-topic", "db-sync-events",
                 "app.state-dir", "processor/kafka-streams-state",
                 "app.commit-interval-ms", "100",
-                "spring.kafka.bootstrap-servers", "localhost:9092"
+                "spring.kafka.bootstrap-servers", "localhost:9092",
+                "app.db-writer.enabled", "false",
+                "app.db-writer.consumer-group", "db-sync-writer"
         ));
         application.addInitializers(context -> registerBeans((GenericApplicationContext) context));
         return application;
@@ -47,6 +49,13 @@ public final class ProcessorApplication {
         context.registerBean(KafkaStreamsManager.class, () -> new KafkaStreamsManager(
                 context.getBean(ProcessorSettings.class),
                 context.getBean(SerdeFactory.class)
+        ));
+        context.registerBean(DbSyncWriterSettings.class, () -> DbSyncWriterSettings.from(context.getEnvironment(), context.getBean(ProcessorSettings.class)));
+        context.registerBean(DbSyncSqlRepository.class, () -> new JdbcDbSyncSqlRepository(context.getBean(javax.sql.DataSource.class)));
+        context.registerBean(DbSyncWriterLifecycle.class, () -> new DbSyncWriterLifecycle(
+                context.getBean(DbSyncWriterSettings.class),
+                context.getBean(SerdeFactory.class),
+                context.getBean(DbSyncSqlRepository.class)
         ));
     }
 

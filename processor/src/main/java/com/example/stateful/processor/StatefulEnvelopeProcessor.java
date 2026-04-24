@@ -1,11 +1,13 @@
 package com.example.stateful.processor;
 
+import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
+import com.example.stateful.messaging.DbSyncEnvelope;
+import com.example.stateful.messaging.DbSyncMutationType;
 import com.example.stateful.messaging.MessageEnvelope;
 import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.api.ContextualProcessor;
-import org.apache.kafka.streams.processor.api.ProcessorContext;
 import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
@@ -17,7 +19,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class StatefulEnvelopeProcessor extends ContextualProcessor<String, MessageEnvelope, String, MessageEnvelope> {
+public final class StatefulEnvelopeProcessor extends ContextualProcessor<String, MessageEnvelope, String, ProcessorForward> {
 
     private static final Logger log = LoggerFactory.getLogger(StatefulEnvelopeProcessor.class);
 
@@ -29,7 +31,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     private KeyValueStore<String, Long> tDedupeStore;
 
     @Override
-    public void init(ProcessorContext<String, MessageEnvelope> context) {
+    public void init(org.apache.kafka.streams.processor.api.ProcessorContext<String, ProcessorForward> context) {
         super.init(context);
         this.tStore = context.getStateStore(StateStoresConfig.UNPROCESSED_T_STORE);
         this.sStore = context.getStateStore(StateStoresConfig.UNPROCESSED_S_STORE);
@@ -76,22 +78,56 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         TS ts = new TS("ts-" + t.id(), pid, t.q());
         MessageEnvelope output = MessageEnvelope.forTS(ts);
 
+        emitDbSync(record, pid, 1, DbSyncMutationType.ACCEPTED_T, t, null, null);
+        emitDbSync(record, pid, 2, DbSyncMutationType.UPSERT_UNPROCESSED_T, t, null, null);
+        emitDbSync(record, pid, 3, DbSyncMutationType.GENERATED_TS, null, null, ts);
+
         log.info("Stored T id={} pid={} ref={} cancel={}", t.id(), pid, t.ref(), t.cancel());
 
-        context().forward(record.withKey(pid).withValue(output));
+        context().forward(record.withKey(pid).withValue(ProcessorForward.processed(output)));
     }
 
     private void handleS(Record<String, MessageEnvelope> record, String pid) {
+        S s = record.value().s();
         SBucket current = sStore.get(pid);
-        SBucket updated = (current == null ? SBucket.empty() : current).append(record.value().s());
+        SBucket updated = (current == null ? SBucket.empty() : current).append(s);
         sStore.put(pid, updated);
 
-        log.info("Stored S id={} pid={} at {}", record.value().s().id(), pid, Instant.ofEpochMilli(record.timestamp()));
+        emitDbSync(record, pid, 1, DbSyncMutationType.ACCEPTED_S, null, s, null);
+        emitDbSync(record, pid, 2, DbSyncMutationType.UPSERT_UNPROCESSED_S, null, s, null);
+
+        log.info("Stored S id={} pid={} at {}", s.id(), pid, Instant.ofEpochMilli(record.timestamp()));
     }
 
     private void handleTs(Record<String, MessageEnvelope> record, String pid) {
         log.info("Forwarding TS id={} pid={}", record.value().ts().id(), pid);
-        context().forward(record.withKey(pid));
+        context().forward(record.withKey(pid).withValue(ProcessorForward.processed(record.value())));
+    }
+
+    private void emitDbSync(
+            Record<String, MessageEnvelope> record,
+            String pid,
+            int ordinal,
+            DbSyncMutationType mutationType,
+            T t,
+            S s,
+            TS ts
+    ) {
+        var metadata = context().recordMetadata().orElseThrow();
+        DbSyncEnvelope envelope = new DbSyncEnvelope(
+                metadata.topic() + "-" + metadata.partition() + "-" + metadata.offset() + "-" + ordinal + "-" + mutationType,
+                mutationType,
+                pid,
+                metadata.topic(),
+                metadata.partition(),
+                metadata.offset(),
+                eventTimestamp(record),
+                ordinal,
+                t,
+                s,
+                ts
+        );
+        context().forward(record.withKey(pid).withValue(ProcessorForward.dbSync(envelope)));
     }
 
     private long eventTimestamp(Record<String, MessageEnvelope> record) {

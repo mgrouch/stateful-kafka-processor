@@ -16,6 +16,7 @@ public record ProcessorSettings(
         String applicationId,
         String inputTopic,
         String outputTopic,
+        String dbSyncTopic,
         Path stateDir,
         long commitIntervalMs
 ) {
@@ -25,6 +26,7 @@ public record ProcessorSettings(
         requireText(applicationId, "applicationId");
         requireText(inputTopic, "inputTopic");
         requireText(outputTopic, "outputTopic");
+        requireText(dbSyncTopic, "dbSyncTopic");
         Objects.requireNonNull(stateDir, "stateDir must not be null");
         if (commitIntervalMs <= 0) {
             throw new IllegalArgumentException("commitIntervalMs must be > 0");
@@ -37,6 +39,7 @@ public record ProcessorSettings(
                 environment.getRequiredProperty("app.application-id"),
                 environment.getRequiredProperty("app.input-topic"),
                 environment.getRequiredProperty("app.output-topic"),
+                environment.getRequiredProperty("app.db-sync-topic"),
                 Path.of(environment.getRequiredProperty("app.state-dir")),
                 Long.parseLong(environment.getRequiredProperty("app.commit-interval-ms"))
         );
