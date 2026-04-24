@@ -1,6 +1,6 @@
 package com.example.stateful.messaging;
 
-import com.example.stateful.domain.AllocationStatus;
+import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
@@ -19,7 +19,7 @@ class MessageEnvelopeSerdeTest {
         mapper.findAndRegisterModules();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "IBM", "REF-10", true, 77L, 11L, AllocationStatus.FAIL));
+        MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "IBM", "REF-10", true, 77L, 11L, AStatus.FAIL));
 
         String json = mapper.writeValueAsString(original);
         MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
@@ -31,7 +31,7 @@ class MessageEnvelopeSerdeTest {
         assertTrue(parsed.t().cancel());
         assertEquals(77L, parsed.t().q());
         assertEquals(11L, parsed.t().q_a());
-        assertEquals(AllocationStatus.FAIL, parsed.t().a_status());
+        assertEquals(AStatus.FAIL, parsed.t().a_status());
     }
 
     @Test

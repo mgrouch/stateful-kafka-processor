@@ -1,6 +1,6 @@
 package com.example.stateful.domain;
 
-public enum AllocationStatus {
+public enum AStatus {
     NORMAL,
     FAIL
 }

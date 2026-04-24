@@ -1,6 +1,6 @@
 package com.example.stateful.processor.topology;
 
-import com.example.stateful.domain.AllocationStatus;
+import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.messaging.DbSyncEnvelope;
@@ -137,9 +137,9 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
-            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-b", "IBM", "R-1", false, 30L, 0L, AllocationStatus.NORMAL)), t0.toEpochMilli());
-            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-a", "IBM", "R-2", false, 30L, 0L, AllocationStatus.NORMAL)), t0.plusMillis(1).toEpochMilli());
-            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-fail", "IBM", "R-3", false, 30L, 0L, AllocationStatus.FAIL)), t0.plusMillis(2).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-b", "IBM", "R-1", false, 30L, 0L, AStatus.NORMAL)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-a", "IBM", "R-2", false, 30L, 0L, AStatus.NORMAL)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-fail", "IBM", "R-3", false, 30L, 0L, AStatus.FAIL)), t0.plusMillis(2).toEpochMilli());
             input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 70L, 0L, true)), t0.plusMillis(3).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
@@ -384,9 +384,9 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, start);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
-            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 20L, 0L, AllocationStatus.NORMAL)), start.toEpochMilli());
-            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-2", "IBM", "R-2", false, 20L, 0L, AllocationStatus.NORMAL)), start.plusMillis(1).toEpochMilli());
-            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-3", "IBM", "R-3", false, 20L, 0L, AllocationStatus.NORMAL)), start.plusMillis(2).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 20L, 0L, AStatus.NORMAL)), start.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-2", "IBM", "R-2", false, 20L, 0L, AStatus.NORMAL)), start.plusMillis(1).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-3", "IBM", "R-3", false, 20L, 0L, AStatus.NORMAL)), start.plusMillis(2).toEpochMilli());
             input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 45L, 0L, false)), start.plusMillis(3).toEpochMilli());
 
             return output.readValuesToList().stream().map(v -> v.ts().tid()).toList();
