@@ -2,18 +2,23 @@ package com.example.stateful.domain;
 
 import java.util.Objects;
 
-public record S(String id, String pid, long q, long q_carry, long q_a, boolean rollover) {
+public record S(String id, String pid, long q, long q_carry, long q_a, boolean rollover, Dir dir) {
     public S(String id, String pid, long q, long q_a) {
-        this(id, pid, q, 0L, q_a, false);
+        this(id, pid, q, 0L, q_a, false, Dir.D);
     }
 
     public S(String id, String pid, long q, long q_a, boolean rollover) {
-        this(id, pid, q, 0L, q_a, rollover);
+        this(id, pid, q, 0L, q_a, rollover, Dir.D);
+    }
+
+    public S(String id, String pid, long q, long q_carry, long q_a, boolean rollover) {
+        this(id, pid, q, q_carry, q_a, rollover, Dir.D);
     }
 
     public S {
         requireText(id, "id");
         requireText(pid, "pid");
+        dir = dir == null ? Dir.D : dir;
 
         long total = q + q_carry;
         if (total == 0L) {

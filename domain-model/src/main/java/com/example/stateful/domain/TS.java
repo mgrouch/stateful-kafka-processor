@@ -2,12 +2,17 @@ package com.example.stateful.domain;
 
 import java.util.Objects;
 
-public record TS(String id, String pid, String tid, String sid, long q, long q_a) {
+public record TS(String id, String pid, String tid, String sid, long q, long q_a, TT tt) {
+    public TS(String id, String pid, String tid, String sid, long q, long q_a) {
+        this(id, pid, tid, sid, q, q_a, TT.B);
+    }
+
     public TS {
         requireText(id, "id");
         requireText(pid, "pid");
         requireText(tid, "tid");
         requireText(sid, "sid");
+        tt = tt == null ? TT.B : tt;
         if (q == 0) {
             throw new IllegalArgumentException("q must not be 0");
         }
