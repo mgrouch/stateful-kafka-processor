@@ -1,0 +1,40 @@
+name: build-pdf
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build_pdf:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      DOC_DIR: doc
+      ROOT_TEX: "*.tex"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile LaTeX
+        uses: xu-cheng/latex-action@v4
+        with:
+          working_directory: ${{ env.DOC_DIR }}
+          root_file: ${{ env.ROOT_TEX }}
+          latexmk_use_lualatex: true
+          latexmk_shell_escape: true
+          args: "-shell-escape -interaction=nonstopmode -file-line-error"
+          extra_system_packages: "inkscape ghostscript graphviz openjdk11-jre"
+          pre_compile: |
+            echo "openout_any = a" | tee -a "$(kpsewhich texmf.cnf)"
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            ${{ env.DOC_DIR }}/**/*.pdf
+          if-no-files-found: error
+          retention-days: 5
