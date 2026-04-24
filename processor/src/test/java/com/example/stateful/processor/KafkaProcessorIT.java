@@ -58,7 +58,7 @@ class KafkaProcessorIT {
             try (KafkaProducer<String, MessageEnvelope> producer = producer(serdeFactory);
                  KafkaConsumer<String, MessageEnvelope> consumer = consumer(serdeFactory, outputTopic)) {
 
-                producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forT(new T("t-101", "IBM", 1000L)))).get();
+                producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forT(new T("t-101", "IBM", "ref-101", false, 1000L)))).get();
                 producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forS(new S("s-101", "IBM", 500L)))).get();
                 producer.flush();
 
