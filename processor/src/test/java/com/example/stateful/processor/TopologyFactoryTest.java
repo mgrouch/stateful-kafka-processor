@@ -35,8 +35,6 @@ class TopologyFactoryTest {
                 "input-events",
                 "processed-events",
                 Files.createTempDirectory("streams-test-state"),
-                0,
-                3,
                 100
         );
 

@@ -17,8 +17,6 @@ public record ProcessorSettings(
         String inputTopic,
         String outputTopic,
         Path stateDir,
-        int partitionNumber,
-        int totalPartitions,
         long commitIntervalMs
 ) {
 
@@ -28,15 +26,6 @@ public record ProcessorSettings(
         requireText(inputTopic, "inputTopic");
         requireText(outputTopic, "outputTopic");
         Objects.requireNonNull(stateDir, "stateDir must not be null");
-        if (partitionNumber < 0) {
-            throw new IllegalArgumentException("partitionNumber must be >= 0");
-        }
-        if (totalPartitions <= 0) {
-            throw new IllegalArgumentException("totalPartitions must be > 0");
-        }
-        if (partitionNumber >= totalPartitions) {
-            throw new IllegalArgumentException("partitionNumber must be < totalPartitions");
-        }
         if (commitIntervalMs <= 0) {
             throw new IllegalArgumentException("commitIntervalMs must be > 0");
         }
@@ -49,8 +38,6 @@ public record ProcessorSettings(
                 environment.getRequiredProperty("app.input-topic"),
                 environment.getRequiredProperty("app.output-topic"),
                 Path.of(environment.getRequiredProperty("app.state-dir")),
-                Integer.parseInt(environment.getRequiredProperty("app.instance.partition-number")),
-                Integer.parseInt(environment.getRequiredProperty("app.instance.total-partitions")),
                 Long.parseLong(environment.getRequiredProperty("app.commit-interval-ms"))
         );
     }
@@ -66,7 +53,7 @@ public record ProcessorSettings(
         properties.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, commitIntervalMs);
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.put(StreamsConfig.producerPrefix(ProducerConfig.ACKS_CONFIG), "all");
-        properties.put(CommonClientConfigs.CLIENT_ID_CONFIG, applicationId + "-p" + partitionNumber + "-of-" + totalPartitions);
+        properties.put(CommonClientConfigs.CLIENT_ID_CONFIG, applicationId + "-streams");
         return properties;
     }
 

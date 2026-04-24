@@ -44,9 +44,8 @@ public final class KafkaStreamsManager implements SmartLifecycle {
         }
         kafkaStreams.start();
         running = true;
-        log.info("Started processor applicationId={} bootstrapServers={} inputTopic={} outputTopic={} instancePartition={}/{}",
-                settings.applicationId(), settings.bootstrapServers(), settings.inputTopic(), settings.outputTopic(),
-                settings.partitionNumber(), settings.totalPartitions());
+        log.info("Started processor applicationId={} bootstrapServers={} inputTopic={} outputTopic={}",
+                settings.applicationId(), settings.bootstrapServers(), settings.inputTopic(), settings.outputTopic());
     }
 
     @Override

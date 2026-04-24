@@ -18,11 +18,6 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     private KeyValueStore<String, TBucket> tStore;
     private KeyValueStore<String, SBucket> sStore;
-    private final ProcessorSettings settings;
-
-    public StatefulEnvelopeProcessor(ProcessorSettings settings) {
-        this.settings = settings;
-    }
 
     @Override
     public void init(ProcessorContext<String, MessageEnvelope> context) {
@@ -41,17 +36,15 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         if (record.key() != null && !pid.equals(record.key())) {
             log.warn("Incoming record key {} does not match pid {}. For strict per-pid partition ordering, producers should publish with key=pid.", record.key(), pid);
         }
-        int expectedPartition = PidPartitioner.partitionFor(pid, settings.totalPartitions());
-
         switch (record.value().kind()) {
-            case T -> handleT(record, pid, expectedPartition);
-            case S -> handleS(record, pid, expectedPartition);
-            case TS -> handleTs(record, pid, expectedPartition);
+            case T -> handleT(record, pid);
+            case S -> handleS(record, pid);
+            case TS -> handleTs(record, pid);
             default -> throw new IllegalStateException("Unsupported kind " + record.value().kind());
         }
     }
 
-    private void handleT(Record<String, MessageEnvelope> record, String pid, int expectedPartition) {
+    private void handleT(Record<String, MessageEnvelope> record, String pid) {
         TBucket current = tStore.get(pid);
         TBucket updated = (current == null ? TBucket.empty() : current).append(record.value().t());
         tStore.put(pid, updated);
@@ -59,24 +52,21 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         TS ts = new TS("ts-" + record.value().t().id(), pid, record.value().t().q());
         MessageEnvelope output = MessageEnvelope.forTS(ts);
 
-        log.info("Stored T id={} pid={} expectedPartition={} instancePartition={}",
-                record.value().t().id(), pid, expectedPartition, settings.partitionNumber());
+        log.info("Stored T id={} pid={}", record.value().t().id(), pid);
 
         context().forward(record.withKey(pid).withValue(output));
     }
 
-    private void handleS(Record<String, MessageEnvelope> record, String pid, int expectedPartition) {
+    private void handleS(Record<String, MessageEnvelope> record, String pid) {
         SBucket current = sStore.get(pid);
         SBucket updated = (current == null ? SBucket.empty() : current).append(record.value().s());
         sStore.put(pid, updated);
 
-        log.info("Stored S id={} pid={} expectedPartition={} instancePartition={} at {}",
-                record.value().s().id(), pid, expectedPartition, settings.partitionNumber(), Instant.ofEpochMilli(record.timestamp()));
+        log.info("Stored S id={} pid={} at {}", record.value().s().id(), pid, Instant.ofEpochMilli(record.timestamp()));
     }
 
-    private void handleTs(Record<String, MessageEnvelope> record, String pid, int expectedPartition) {
-        log.info("Forwarding TS id={} pid={} expectedPartition={} instancePartition={}",
-                record.value().ts().id(), pid, expectedPartition, settings.partitionNumber());
+    private void handleTs(Record<String, MessageEnvelope> record, String pid) {
+        log.info("Forwarding TS id={} pid={}", record.value().ts().id(), pid);
         context().forward(record.withKey(pid));
     }
 }

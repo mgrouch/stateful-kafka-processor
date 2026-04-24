@@ -48,8 +48,6 @@ class KafkaProcessorIT {
                 "--app.input-topic=" + inputTopic,
                 "--app.output-topic=" + outputTopic,
                 "--app.state-dir=" + Files.createTempDirectory("stateful-it-state"),
-                "--app.instance.partition-number=0",
-                "--app.instance.total-partitions=3",
                 "--app.commit-interval-ms=100"
         )) {
             KafkaStreamsManager manager = context.getBean(KafkaStreamsManager.class);

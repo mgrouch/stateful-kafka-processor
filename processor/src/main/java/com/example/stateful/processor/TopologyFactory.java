@@ -30,7 +30,7 @@ public final class TopologyFactory {
                 settings.inputTopic()
         );
 
-        ProcessorSupplier<String, MessageEnvelope, String, MessageEnvelope> supplier = () -> new StatefulEnvelopeProcessor(settings);
+        ProcessorSupplier<String, MessageEnvelope, String, MessageEnvelope> supplier = StatefulEnvelopeProcessor::new;
         topology.addProcessor(PROCESSOR, supplier, SOURCE);
 
         KeyValueBytesStoreSupplier tStoreSupplier = Stores.persistentKeyValueStore(StateStoresConfig.UNPROCESSED_T_STORE);
