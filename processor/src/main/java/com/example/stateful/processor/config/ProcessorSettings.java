@@ -18,7 +18,8 @@ public record ProcessorSettings(
         String outputTopic,
         String dbSyncTopic,
         Path stateDir,
-        long commitIntervalMs
+        long commitIntervalMs,
+        long allocationLotterySeed
 ) {
 
     public ProcessorSettings {
@@ -41,7 +42,8 @@ public record ProcessorSettings(
                 environment.getRequiredProperty("app.output-topic"),
                 environment.getRequiredProperty("app.db-sync-topic"),
                 Path.of(environment.getRequiredProperty("app.state-dir")),
-                Long.parseLong(environment.getRequiredProperty("app.commit-interval-ms"))
+                Long.parseLong(environment.getRequiredProperty("app.commit-interval-ms")),
+                Long.parseLong(environment.getProperty("allocation.lottery.seed", "1357911"))
         );
     }
 

@@ -122,7 +122,7 @@ class TopologyFactoryTest {
 
             List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items();
             assertThat(openT).hasSize(1);
-            assertThat(openT.get(0).id()).isEqualTo("t-2");
+            assertThat(openT.get(0).id()).isEqualTo(emitted.get(1).ts().tid());
             assertThat(openT.get(0).q_a()).isEqualTo(10L);
             assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items()).isEmpty();
         }
@@ -144,15 +144,50 @@ class TopologyFactoryTest {
 
             List<MessageEnvelope> emitted = output.readValuesToList();
             assertThat(emitted).hasSize(3);
-            assertThat(emitted).extracting(v -> v.ts().tid()).containsExactly("t-fail", "t-a", "t-b");
+            assertThat(emitted.get(0).ts().tid()).isEqualTo("t-fail");
             assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(30L, 30L, 10L);
 
             List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items();
             assertThat(openT).hasSize(1);
-            assertThat(openT.get(0).id()).isEqualTo("t-b");
+            assertThat(openT.get(0).id()).isEqualTo(emitted.get(2).ts().tid());
             assertThat(openT.get(0).q_a()).isEqualTo(10L);
 
             assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items()).isEmpty();
+        }
+    }
+
+    @Test
+    void sameSeedProducesSameLotteryOrder() throws Exception {
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+        List<String> first = emittedTidForSeed(1234L, t0);
+        List<String> second = emittedTidForSeed(1234L, t0.plusSeconds(5));
+        assertThat(first).containsExactlyElementsOf(second);
+    }
+
+    @Test
+    void differentSeedsCanProduceDifferentLotteryOrderWithinPriorityBucket() throws Exception {
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+        List<String> first = emittedTidForSeed(111L, t0);
+        List<String> second = emittedTidForSeed(222L, t0.plusSeconds(5));
+        assertThat(first).isNotEqualTo(second);
+    }
+
+    @Test
+    void rolloverSupplyIsConsumedBeforeNonRollover() throws Exception {
+        TestHarness harness = new TestHarness(77L);
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-normal", "IBM", 50L, 0L, false)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-roll", "IBM", 50L, 0L, true)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 60L, 0L)), t0.plusMillis(2).toEpochMilli());
+
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).hasSize(2);
+            assertThat(emitted).extracting(v -> v.ts().sid()).containsExactly("s-roll", "s-normal");
         }
     }
 
@@ -207,6 +242,10 @@ class TopologyFactoryTest {
         private final ProcessorSettings settings;
 
         private TestHarness() throws Exception {
+            this(1357911L);
+        }
+
+        private TestHarness(long lotterySeed) throws Exception {
             ObjectMapper mapper = new ObjectMapper();
             mapper.findAndRegisterModules();
             mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -218,7 +257,8 @@ class TopologyFactoryTest {
                     "processed-events",
                     "db-sync-events",
                     Files.createTempDirectory("streams-test-state"),
-                    100
+                    100,
+                    lotterySeed
             );
         }
 
@@ -254,6 +294,21 @@ class TopologyFactoryTest {
                     Serdes.String().deserializer(),
                     serdeFactory.dbSyncEnvelopeSerde().deserializer()
             );
+        }
+    }
+
+    private static List<String> emittedTidForSeed(long seed, Instant start) throws Exception {
+        TestHarness harness = new TestHarness(seed);
+        try (TopologyTestDriver driver = harness.driver(start)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, start);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 20L, 0L, AllocationStatus.NORMAL)), start.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-2", "IBM", "R-2", false, 20L, 0L, AllocationStatus.NORMAL)), start.plusMillis(1).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-3", "IBM", "R-3", false, 20L, 0L, AllocationStatus.NORMAL)), start.plusMillis(2).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 45L, 0L, false)), start.plusMillis(3).toEpochMilli());
+
+            return output.readValuesToList().stream().map(v -> v.ts().tid()).toList();
         }
     }
 }
