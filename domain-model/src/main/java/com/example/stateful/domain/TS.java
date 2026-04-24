@@ -1,10 +1,15 @@
 package com.example.stateful.domain;
 
 import java.util.Objects;
+import java.time.LocalDate;
 
-public record TS(String id, String pid, String tid, String sid, long q, long q_a, TT tt) {
+public record TS(String id, String pid, String tid, String sid, LocalDate tDate, LocalDate sDate, long q, long q_a, TT tt) {
     public TS(String id, String pid, String tid, String sid, long q, long q_a) {
-        this(id, pid, tid, sid, q, q_a, TT.B);
+        this(id, pid, tid, sid, null, null, q, q_a, TT.B);
+    }
+
+    public TS(String id, String pid, String tid, String sid, LocalDate tDate, LocalDate sDate, long q, long q_a) {
+        this(id, pid, tid, sid, tDate, sDate, q, q_a, TT.B);
     }
 
     public TS {

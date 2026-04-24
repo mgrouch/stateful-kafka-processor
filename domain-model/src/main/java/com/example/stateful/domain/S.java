@@ -1,18 +1,31 @@
 package com.example.stateful.domain;
 
 import java.util.Objects;
+import java.time.LocalDate;
 
-public record S(String id, String pid, long q, long q_carry, long q_a, boolean rollover, Dir dir) {
+public record S(String id, String pid, LocalDate bDate, long q, long q_carry, long q_a, boolean rollover, Dir dir) {
     public S(String id, String pid, long q, long q_a) {
-        this(id, pid, q, 0L, q_a, false, Dir.D);
+        this(id, pid, null, q, 0L, q_a, false, Dir.D);
     }
 
     public S(String id, String pid, long q, long q_a, boolean rollover) {
-        this(id, pid, q, 0L, q_a, rollover, Dir.D);
+        this(id, pid, null, q, 0L, q_a, rollover, Dir.D);
     }
 
     public S(String id, String pid, long q, long q_carry, long q_a, boolean rollover) {
-        this(id, pid, q, q_carry, q_a, rollover, Dir.D);
+        this(id, pid, null, q, q_carry, q_a, rollover, Dir.D);
+    }
+
+    public S(String id, String pid, LocalDate bDate, long q, long q_a) {
+        this(id, pid, bDate, q, 0L, q_a, false, Dir.D);
+    }
+
+    public S(String id, String pid, LocalDate bDate, long q, long q_a, boolean rollover) {
+        this(id, pid, bDate, q, 0L, q_a, rollover, Dir.D);
+    }
+
+    public S(String id, String pid, LocalDate bDate, long q, long q_carry, long q_a, boolean rollover) {
+        this(id, pid, bDate, q, q_carry, q_a, rollover, Dir.D);
     }
 
     public S {
