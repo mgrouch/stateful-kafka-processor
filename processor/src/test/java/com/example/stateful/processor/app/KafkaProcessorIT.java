@@ -37,6 +37,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class KafkaProcessorIT {
 
     private static final String BOOTSTRAP = System.getProperty("it.kafka.bootstrap", "localhost:9092");
+    private static final String SECURITY_PROTOCOL = System.getProperty("it.kafka.security.protocol", "PLAINTEXT");
+    private static final String SSL_TRUSTSTORE_LOCATION = System.getProperty("it.kafka.ssl.truststore.location", "");
+    private static final String SSL_TRUSTSTORE_PASSWORD = System.getProperty("it.kafka.ssl.truststore.password", "");
+    private static final String SSL_KEYSTORE_LOCATION = System.getProperty("it.kafka.ssl.keystore.location", "");
+    private static final String SSL_KEYSTORE_PASSWORD = System.getProperty("it.kafka.ssl.keystore.password", "");
+    private static final String SSL_KEY_PASSWORD = System.getProperty("it.kafka.ssl.key.password", "");
+    private static final String SSL_ENDPOINT_IDENTIFICATION_ALGORITHM = System.getProperty("it.kafka.ssl.endpoint.identification.algorithm", "HTTPS");
 
     @Test
     void roundTripWithRealKafkaWorks() throws Exception {
@@ -50,6 +57,12 @@ class KafkaProcessorIT {
 
         try (ConfigurableApplicationContext context = ProcessorApplication.createApplication().run(
                 "--spring.kafka.bootstrap-servers=" + BOOTSTRAP,
+                "--app.kafka.security-protocol=" + SECURITY_PROTOCOL,
+                "--app.kafka.ssl.truststore-location=" + SSL_TRUSTSTORE_LOCATION,
+                "--app.kafka.ssl.truststore-password=" + SSL_TRUSTSTORE_PASSWORD,
+                "--app.kafka.ssl.keystore-location=" + SSL_KEYSTORE_LOCATION,
+                "--app.kafka.ssl.keystore-password=" + SSL_KEYSTORE_PASSWORD,
+                "--app.kafka.ssl.key-password=" + SSL_KEY_PASSWORD,
                 "--app.application-id=" + applicationId,
                 "--app.input-topic=" + inputTopic,
                 "--app.output-topic=" + outputTopic,
@@ -98,6 +111,7 @@ class KafkaProcessorIT {
     private static void createTopics(String inputTopic, String outputTopic, String dbSyncTopic) throws Exception {
         Properties properties = new Properties();
         properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
+        putSecurityConfig(properties);
 
         try (AdminClient admin = AdminClient.create(properties)) {
             admin.createTopics(List.of(
@@ -116,6 +130,7 @@ class KafkaProcessorIT {
         Properties properties = new Properties();
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
         properties.put(ProducerConfig.ACKS_CONFIG, "all");
+        putSecurityConfig(properties);
         return new KafkaProducer<>(properties, new StringSerializer(), serdeFactory.envelopeSerde().serializer());
     }
 
@@ -124,6 +139,7 @@ class KafkaProcessorIT {
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "it-consumer-" + UUID.randomUUID());
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        putSecurityConfig(properties);
 
         KafkaConsumer<String, MessageEnvelope> consumer = new KafkaConsumer<>(properties, new StringDeserializer(), serdeFactory.envelopeSerde().deserializer());
         consumer.subscribe(List.of(topic));
@@ -135,10 +151,27 @@ class KafkaProcessorIT {
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "it-consumer-" + UUID.randomUUID());
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        putSecurityConfig(properties);
 
         KafkaConsumer<String, DbSyncEnvelope> consumer = new KafkaConsumer<>(properties, new StringDeserializer(), serdeFactory.dbSyncEnvelopeSerde().deserializer());
         consumer.subscribe(List.of(topic));
         return consumer;
+    }
+
+    private static void putSecurityConfig(Properties properties) {
+        properties.put("security.protocol", SECURITY_PROTOCOL);
+        putIfPresent(properties, "ssl.truststore.location", SSL_TRUSTSTORE_LOCATION);
+        putIfPresent(properties, "ssl.truststore.password", SSL_TRUSTSTORE_PASSWORD);
+        putIfPresent(properties, "ssl.keystore.location", SSL_KEYSTORE_LOCATION);
+        putIfPresent(properties, "ssl.keystore.password", SSL_KEYSTORE_PASSWORD);
+        putIfPresent(properties, "ssl.key.password", SSL_KEY_PASSWORD);
+        putIfPresent(properties, "ssl.endpoint.identification.algorithm", SSL_ENDPOINT_IDENTIFICATION_ALGORITHM);
+    }
+
+    private static void putIfPresent(Properties properties, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            properties.put(key, value);
+        }
     }
 
     private static <V> ConsumerRecord<String, V> pollOne(KafkaConsumer<String, V> consumer, Duration timeout) {
