@@ -66,21 +66,15 @@ final class TransitionsLogic {
     }
 
     AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
-        List<T> directionallyClosedCandidates = candidates.stream()
-                .map(candidate -> shouldCloseAgainstIncomingS(candidate, incomingS) && isOpen(candidate)
-                        ? new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), candidate.cancel(), candidate.q(), candidate.q(), candidate.a_status(), candidate.tt())
-                        : candidate)
-                .toList();
-
         long incomingSOpen = remainingS(incomingS);
-        List<T> signCompatibleCandidates = directionallyClosedCandidates.stream()
+        List<T> signCompatibleCandidates = candidates.stream()
                 .filter(candidate -> areSignCompatible(incomingSOpen, remainingT(candidate)))
                 .toList();
-        List<T> untouchedCandidates = directionallyClosedCandidates.stream()
+        List<T> untouchedCandidates = candidates.stream()
                 .filter(candidate -> !areSignCompatible(incomingSOpen, remainingT(candidate)))
                 .toList();
         List<T> orderedCandidates = orderTCandidates(signCompatibleCandidates, incomingS.pid(), incomingS.id());
-        requireSamePid(directionallyClosedCandidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
+        requireSamePid(candidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
         ensureFailPriority(orderedCandidates);
 
         List<T> updatedT = new ArrayList<>();
@@ -217,13 +211,6 @@ final class TransitionsLogic {
                 throw new IllegalStateException("allocate output over-allocates T id " + ts.tid());
             }
         }
-    }
-
-    private static boolean shouldCloseAgainstIncomingS(T candidate, S incomingS) {
-        return switch (incomingS.dir()) {
-            case R -> candidate.q() < 0L;
-            case D -> candidate.q() > 0L;
-        };
     }
 
     private static void requireSamePid(List<String> pids, String expectedPid, String entityName) {
