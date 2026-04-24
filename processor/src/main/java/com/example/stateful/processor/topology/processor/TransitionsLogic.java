@@ -66,21 +66,42 @@ final class TransitionsLogic {
     }
 
     AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
-        long incomingSOpen = remainingS(incomingS);
-        List<T> signCompatibleCandidates = candidates.stream()
-                .filter(candidate -> areSignCompatible(incomingSOpen, remainingT(candidate)))
-                .toList();
-        List<T> untouchedCandidates = candidates.stream()
-                .filter(candidate -> !areSignCompatible(incomingSOpen, remainingT(candidate)))
-                .toList();
-        List<T> orderedCandidates = orderTCandidates(signCompatibleCandidates, incomingS.pid(), incomingS.id());
         requireSamePid(candidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
-        ensureFailPriority(orderedCandidates);
 
         List<T> updatedT = new ArrayList<>();
         List<TS> emitted = new ArrayList<>();
         S updatedS = incomingS;
         int tsIndex = 0;
+
+        List<T> forcedCloseCandidates = candidates.stream()
+                .filter(candidate -> shouldForceCloseForIncomingSDir(candidate, incomingS))
+                .toList();
+        List<T> orderedForcedCloseCandidates = orderTCandidates(forcedCloseCandidates, incomingS.pid(), incomingS.id() + "-forced");
+        ensureFailPriority(orderedForcedCloseCandidates);
+        for (T candidate : orderedForcedCloseCandidates) {
+            long remaining = remainingT(candidate);
+            if (remaining == 0L) {
+                updatedT.add(candidate);
+                continue;
+            }
+
+            T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), candidate.cancel(), candidate.q(), candidate.q(), candidate.a_status(), candidate.tt());
+            updatedT.add(nextT);
+            emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.id(), incomingS.id(), nextT.tDate(), incomingS.bDate(), nextT.q(), remaining, nextT.tt()));
+        }
+
+        long incomingSOpen = remainingS(updatedS);
+        List<T> remainingCandidates = candidates.stream()
+                .filter(candidate -> !shouldForceCloseForIncomingSDir(candidate, incomingS))
+                .toList();
+        List<T> signCompatibleCandidates = remainingCandidates.stream()
+                .filter(candidate -> areSignCompatible(incomingSOpen, remainingT(candidate)))
+                .toList();
+        List<T> untouchedCandidates = remainingCandidates.stream()
+                .filter(candidate -> !areSignCompatible(incomingSOpen, remainingT(candidate)))
+                .toList();
+        List<T> orderedCandidates = orderTCandidates(signCompatibleCandidates, incomingS.pid(), incomingS.id());
+        ensureFailPriority(orderedCandidates);
 
         for (T candidate : orderedCandidates) {
             long sRemaining = remainingS(updatedS);
@@ -100,6 +121,13 @@ final class TransitionsLogic {
 
         validateAllocationOutput(updatedS.pid(), updatedT, List.of(updatedS), emitted);
         return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
+    }
+
+    private static boolean shouldForceCloseForIncomingSDir(T candidate, S incomingS) {
+        return switch (incomingS.dir()) {
+            case R -> candidate.q() < 0L;
+            case D -> candidate.q() > 0L;
+        };
     }
 
     boolean isOpen(T t) {
