@@ -41,7 +41,7 @@ class DbSyncWriterTest {
         List<ConsumerRecord<String, DbSyncEnvelope>> records = List.of(
                 record(0, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-1", "IBM", "R-1", false, 10L, 0L), null, null, 0)),
                 record(1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R-1", false, 10L, 0L), null, null, 1)),
-                record(2, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-t-1", "IBM", "t-1", "s-1", 10L), 2))
+                record(2, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-t-1", "IBM", "t-1", "s-1", 10L, 10L), 2))
         );
 
         writer.applyBatch(records);
