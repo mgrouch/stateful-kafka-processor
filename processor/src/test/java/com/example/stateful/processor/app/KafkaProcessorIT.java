@@ -55,7 +55,8 @@ class KafkaProcessorIT {
                 "--app.output-topic=" + outputTopic,
                 "--app.db-sync-topic=" + dbSyncTopic,
                 "--app.state-dir=" + Files.createTempDirectory("stateful-it-state"),
-                "--app.commit-interval-ms=100"
+                "--app.commit-interval-ms=100",
+                "--app.streams.replication-factor=1"
         )) {
             KafkaStreamsManager manager = context.getBean(KafkaStreamsManager.class);
             assertThat(manager.waitUntilRunning(Duration.ofSeconds(30))).isTrue();
