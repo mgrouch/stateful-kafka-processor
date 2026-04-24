@@ -153,7 +153,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
                 updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.cancel(), updatedT.q(), updatedT.q_a() + allocated);
                 S nextS = new S(candidate.id(), candidate.pid(), candidate.q(), candidate.q_a() + allocated);
                 updatedS.add(nextS);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), allocated));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.q(), allocated));
             } else {
                 updatedS.add(candidate);
             }
@@ -180,7 +180,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
                 T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.cancel(), candidate.q(), candidate.q_a() + allocated);
                 updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.q(), updatedS.q_a() + allocated);
                 updatedT.add(nextT);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), allocated));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.q(), allocated));
             } else {
                 updatedT.add(candidate);
             }
@@ -193,6 +193,8 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     private void validateAllocationOutput(String pid, List<T> allowedT, List<S> allowedS, List<TS> emittedTs) {
         Set<String> allowedTid = new HashSet<>();
         Set<String> allowedSid = new HashSet<>();
+        java.util.Map<String, Long> tQuantityById = new java.util.HashMap<>();
+        java.util.Map<String, Long> allocatedByTid = new java.util.HashMap<>();
         for (T t : allowedT) {
             if (!pid.equals(t.pid())) {
                 throw new IllegalStateException("allocate output has T with different pid");
@@ -201,6 +203,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
                 throw new IllegalStateException("allocate output has T q_a outside [0,q]");
             }
             allowedTid.add(t.id());
+            tQuantityById.put(t.id(), t.q());
         }
         for (S s : allowedS) {
             if (!pid.equals(s.pid())) {
@@ -216,14 +219,26 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             if (!pid.equals(ts.pid())) {
                 throw new IllegalStateException("allocate output has TS with different pid");
             }
-            if (ts.q_a() <= 0) {
-                throw new IllegalStateException("allocate output has TS q_a <= 0");
-            }
             if (!allowedTid.contains(ts.tid())) {
                 throw new IllegalStateException("allocate output references unknown TS.tid " + ts.tid());
             }
             if (!allowedSid.contains(ts.sid())) {
                 throw new IllegalStateException("allocate output references unknown TS.sid " + ts.sid());
+            }
+            long sourceQ = tQuantityById.get(ts.tid());
+            if (ts.q() != sourceQ) {
+                throw new IllegalStateException("allocate output has TS.q that does not match source T.q");
+            }
+            if (Long.signum(ts.q_a()) != Long.signum(ts.q())) {
+                throw new IllegalStateException("allocate output has TS q_a sign different from TS.q sign");
+            }
+            if (Math.abs(ts.q_a()) > Math.abs(ts.q())) {
+                throw new IllegalStateException("allocate output has TS abs(q_a) > abs(q)");
+            }
+            long allocatedForTid = allocatedByTid.getOrDefault(ts.tid(), 0L) + ts.q_a();
+            allocatedByTid.put(ts.tid(), allocatedForTid);
+            if (Math.abs(allocatedForTid) > Math.abs(sourceQ)) {
+                throw new IllegalStateException("allocate output over-allocates T id " + ts.tid());
             }
         }
     }

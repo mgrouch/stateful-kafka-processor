@@ -37,6 +37,7 @@ public final class DbSyncSql {
                 pid VARCHAR(128) NOT NULL,
                 tid VARCHAR(128) NOT NULL,
                 sid VARCHAR(128) NOT NULL,
+                q BIGINT NOT NULL,
                 q_a BIGINT NOT NULL,
                 source_topic VARCHAR(255) NOT NULL,
                 source_partition INT NOT NULL,

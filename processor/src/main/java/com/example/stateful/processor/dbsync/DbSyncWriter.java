@@ -187,17 +187,18 @@ public final class DbSyncWriter implements SmartLifecycle {
 
     private void upsertGeneratedTs(Connection connection, DbSyncEnvelope event) throws SQLException {
         String sql = """
-                MERGE INTO generated_ts (id, pid, tid, sid, q_a, source_topic, source_partition, source_offset, source_timestamp, event_id)
+                MERGE INTO generated_ts (id, pid, tid, sid, q, q_a, source_topic, source_partition, source_offset, source_timestamp, event_id)
                 KEY (id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, event.ts().id());
             statement.setString(2, event.pid());
             statement.setString(3, event.ts().tid());
             statement.setString(4, event.ts().sid());
-            statement.setLong(5, event.ts().q_a());
-            setSourceColumns(statement, event, 6);
+            statement.setLong(5, event.ts().q());
+            statement.setLong(6, event.ts().q_a());
+            setSourceColumns(statement, event, 7);
             statement.executeUpdate();
         }
     }

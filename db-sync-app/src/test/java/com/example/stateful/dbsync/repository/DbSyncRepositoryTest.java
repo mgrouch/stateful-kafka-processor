@@ -59,7 +59,7 @@ class DbSyncRepositoryTest {
 
     @Test
     void restartLoadsOffsetsFromDatabase() {
-        DbSyncBatch batch = DbSyncBatch.from(List.of(record(2, 25, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-1", "IBM", "t-1", "s-1", 99), 0))));
+        DbSyncBatch batch = DbSyncBatch.from(List.of(record(2, 25, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-1", "IBM", "t-1", "s-1", 99, 99), 0))));
         repository.applyBatch(GROUP, TOPIC, batch);
 
         Map<TopicPartition, Long> offsets = repository.loadOffsets(GROUP, TOPIC, List.of(2));
@@ -102,7 +102,7 @@ class DbSyncRepositoryTest {
         DbSyncBatch batch = DbSyncBatch.from(List.of(
                 record(0, 0, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-3", "IBM", "R3", false, 20, 0), null, null, 0)),
                 record(0, 1, event(DbSyncMutationType.ACCEPTED_S, "IBM", null, new S("s-3", "IBM", 21, 0), null, 1)),
-                record(0, 2, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-3", "IBM", "t-3", "s-3", 22), 2))
+                record(0, 2, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-3", "IBM", "t-3", "s-3", 22, 22), 2))
         ));
 
         repository.applyBatch(GROUP, TOPIC, batch);
