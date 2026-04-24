@@ -30,6 +30,18 @@ public record T(String id, String pid, String ref, LocalDate tDate, boolean canc
         if (q == 0L) {
             throw new IllegalArgumentException("q must not be 0");
         }
+        switch (tt) {
+            case B, CS -> {
+                if (q <= 0L) {
+                    throw new IllegalArgumentException("q must be > 0 for tt B/CS");
+                }
+            }
+            case S, SS -> {
+                if (q >= 0L) {
+                    throw new IllegalArgumentException("q must be < 0 for tt S/SS");
+                }
+            }
+        }
         if (Long.signum(q_a) != 0 && Long.signum(q_a) != Long.signum(q)) {
             throw new IllegalArgumentException("q_a must have same sign as q");
         }
