@@ -30,7 +30,8 @@ public final class DbSyncApplication {
         SpringApplication application = new SpringApplication(DbSyncBootstrap.class);
         application.setWebApplicationType(WebApplicationType.NONE);
         application.setDefaultProperties(Map.ofEntries(
-                entry("app.bootstrap-servers", "localhost:9092"),
+                entry("app.bootstrap-servers", "localhost:9093"),
+                entry("app.kafka.security-protocol", "SSL"),
                 entry("app.topic", "db-sync-events"),
                 entry("app.consumer-group", "db-sync-app"),
                 entry("app.client-id", "db-sync-app"),

@@ -13,6 +13,12 @@ import org.apache.kafka.streams.StreamsConfig;
 
 public record ProcessorSettings(
         String bootstrapServers,
+        String securityProtocol,
+        String sslTruststoreLocation,
+        String sslTruststorePassword,
+        String sslKeystoreLocation,
+        String sslKeystorePassword,
+        String sslKeyPassword,
         String applicationId,
         String inputTopic,
         String outputTopic,
@@ -26,6 +32,7 @@ public record ProcessorSettings(
 
     public ProcessorSettings {
         requireText(bootstrapServers, "bootstrapServers");
+        requireText(securityProtocol, "securityProtocol");
         requireText(applicationId, "applicationId");
         requireText(inputTopic, "inputTopic");
         requireText(outputTopic, "outputTopic");
@@ -45,6 +52,12 @@ public record ProcessorSettings(
     public static ProcessorSettings from(Environment environment) {
         return new ProcessorSettings(
                 environment.getRequiredProperty("spring.kafka.bootstrap-servers"),
+                environment.getProperty("app.kafka.security-protocol", "SSL"),
+                environment.getProperty("app.kafka.ssl.truststore-location", ""),
+                environment.getProperty("app.kafka.ssl.truststore-password", ""),
+                environment.getProperty("app.kafka.ssl.keystore-location", ""),
+                environment.getProperty("app.kafka.ssl.keystore-password", ""),
+                environment.getProperty("app.kafka.ssl.key-password", ""),
                 environment.getRequiredProperty("app.application-id"),
                 environment.getRequiredProperty("app.input-topic"),
                 environment.getRequiredProperty("app.output-topic"),
@@ -70,7 +83,19 @@ public record ProcessorSettings(
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.put(StreamsConfig.producerPrefix(ProducerConfig.ACKS_CONFIG), "all");
         properties.put(CommonClientConfigs.CLIENT_ID_CONFIG, applicationId + "-streams");
+        properties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
+        putIfPresent(properties, "ssl.truststore.location", sslTruststoreLocation);
+        putIfPresent(properties, "ssl.truststore.password", sslTruststorePassword);
+        putIfPresent(properties, "ssl.keystore.location", sslKeystoreLocation);
+        putIfPresent(properties, "ssl.keystore.password", sslKeystorePassword);
+        putIfPresent(properties, "ssl.key.password", sslKeyPassword);
         return properties;
+    }
+
+    private static void putIfPresent(Properties properties, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            properties.put(key, value);
+        }
     }
 
     private static void requireText(String value, String field) {
