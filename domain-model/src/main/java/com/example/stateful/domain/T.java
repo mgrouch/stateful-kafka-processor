@@ -2,10 +2,11 @@ package com.example.stateful.domain;
 
 import java.util.Objects;
 
-public record T(String id, String pid, long q) {
+public record T(String id, String pid, String ref, boolean cancel, long q) {
     public T {
         requireText(id, "id");
         requireText(pid, "pid");
+        requireText(ref, "ref");
     }
 
     private static void requireText(String value, String field) {

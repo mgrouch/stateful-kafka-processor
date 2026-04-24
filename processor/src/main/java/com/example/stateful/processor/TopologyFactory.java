@@ -2,6 +2,7 @@ package com.example.stateful.processor;
 
 import com.example.stateful.messaging.MessageEnvelope;
 import org.apache.kafka.common.serialization.Serde;
+import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.TopologyDescription;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
@@ -35,6 +36,7 @@ public final class TopologyFactory {
 
         KeyValueBytesStoreSupplier tStoreSupplier = Stores.persistentKeyValueStore(StateStoresConfig.UNPROCESSED_T_STORE);
         KeyValueBytesStoreSupplier sStoreSupplier = Stores.persistentKeyValueStore(StateStoresConfig.UNPROCESSED_S_STORE);
+        KeyValueBytesStoreSupplier dedupeStoreSupplier = Stores.persistentKeyValueStore(StateStoresConfig.T_DEDUPE_STORE);
 
         topology.addStateStore(
                 Stores.keyValueStoreBuilder(tStoreSupplier, stringSerde, serdeFactory.tBucketSerde()),
@@ -42,6 +44,10 @@ public final class TopologyFactory {
         );
         topology.addStateStore(
                 Stores.keyValueStoreBuilder(sStoreSupplier, stringSerde, serdeFactory.sBucketSerde()),
+                PROCESSOR
+        );
+        topology.addStateStore(
+                Stores.keyValueStoreBuilder(dedupeStoreSupplier, stringSerde, Serdes.Long()),
                 PROCESSOR
         );
 
