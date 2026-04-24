@@ -333,6 +333,12 @@ class TopologyFactoryTest {
             this.serdeFactory = new SerdeFactory(mapper);
             this.settings = new ProcessorSettings(
                     "dummy:9092",
+                    "SSL",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
                     "topology-test-app",
                     "input-events",
                     "processed-events",

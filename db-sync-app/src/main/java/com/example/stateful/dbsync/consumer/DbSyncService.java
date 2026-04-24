@@ -9,6 +9,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -118,7 +119,19 @@ public final class DbSyncService {
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, settings.maxPollRecords());
         properties.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
+        properties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, settings.securityProtocol());
+        putIfPresent(properties, "ssl.truststore.location", settings.sslTruststoreLocation());
+        putIfPresent(properties, "ssl.truststore.password", settings.sslTruststorePassword());
+        putIfPresent(properties, "ssl.keystore.location", settings.sslKeystoreLocation());
+        putIfPresent(properties, "ssl.keystore.password", settings.sslKeystorePassword());
+        putIfPresent(properties, "ssl.key.password", settings.sslKeyPassword());
 
         return new KafkaConsumer<>(properties, new StringDeserializer(), new ByteArrayDeserializer());
+    }
+
+    private static void putIfPresent(Properties properties, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            properties.put(key, value);
+        }
     }
 }

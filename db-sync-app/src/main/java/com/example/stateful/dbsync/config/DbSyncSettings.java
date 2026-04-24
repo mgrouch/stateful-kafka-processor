@@ -6,6 +6,12 @@ import java.time.Duration;
 
 public record DbSyncSettings(
         String bootstrapServers,
+        String securityProtocol,
+        String sslTruststoreLocation,
+        String sslTruststorePassword,
+        String sslKeystoreLocation,
+        String sslKeystorePassword,
+        String sslKeyPassword,
         String topic,
         String consumerGroup,
         String clientId,
@@ -21,6 +27,12 @@ public record DbSyncSettings(
     public static DbSyncSettings from(Environment environment) {
         return new DbSyncSettings(
                 required(environment, "app.bootstrap-servers"),
+                environment.getProperty("app.kafka.security-protocol", "SSL"),
+                environment.getProperty("app.kafka.ssl.truststore-location", ""),
+                environment.getProperty("app.kafka.ssl.truststore-password", ""),
+                environment.getProperty("app.kafka.ssl.keystore-location", ""),
+                environment.getProperty("app.kafka.ssl.keystore-password", ""),
+                environment.getProperty("app.kafka.ssl.key-password", ""),
                 required(environment, "app.topic"),
                 required(environment, "app.consumer-group"),
                 required(environment, "app.client-id"),

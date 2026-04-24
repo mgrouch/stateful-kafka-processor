@@ -32,7 +32,8 @@ public final class ProcessorApplication {
                 "app.commit-interval-ms", "100",
                 "app.streams.replication-factor", "3",
                 "app.streams.num-standby-replicas", "1",
-                "spring.kafka.bootstrap-servers", "localhost:9092"
+                "spring.kafka.bootstrap-servers", "localhost:9093",
+                "app.kafka.security-protocol", "SSL"
         ));
         application.addInitializers(context -> registerBeans((GenericApplicationContext) context));
         return application;
