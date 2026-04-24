@@ -21,6 +21,7 @@
         <module>domain-model</module>
         <module>messaging-model</module>
         <module>processor</module>
+        <module>db-sync-app</module>
     </modules>
 
     <properties>
