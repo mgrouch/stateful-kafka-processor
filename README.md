@@ -12,9 +12,10 @@ This repository contains a Java 17, Maven, Spring Boot, multi-module project for
 
 - Reads `MessageEnvelope` records from topic `input-events`
 - Uses `pid` as the logical partition key for state and output. Producers should publish to `input-events` with Kafka record key = `pid` for strict per-`pid` ordering.
-- Keeps two persistent Kafka Streams state stores:
+- Keeps three persistent Kafka Streams state stores:
   - `unprocessed-t-store`
   - `unprocessed-s-store`
+  - `t-dedupe-store` (deduplication index for `T` events)
 - On `T` input:
   - stores the `T` in `unprocessed-t-store`
   - emits a derived `TS` to `processed-events`
@@ -112,6 +113,19 @@ Example emitted `TS` envelope:
   }
 }
 ```
+
+## T deduplication logic
+
+The processor deduplicates incoming `T` events before writing state and emitting `TS`:
+
+- dedupe key: `pid|ref|cancel`
+- dedupe store: `t-dedupe-store` (value = event timestamp in milliseconds)
+- dedupe window: 14 days (`DEDUPE_WINDOW_MILLIS`)
+- behavior: if the same key is seen again within 14 days, the duplicate `T` is skipped (no state append and no output event)
+- first-seen (or outside-window) events are processed normally: the key timestamp is updated, `T` is appended to `unprocessed-t-store`, and a derived `TS` is emitted
+- cleanup: every 1 hour of stream-time punctuation, entries older than the 14-day window are evicted from `t-dedupe-store`
+
+This keeps dedupe memory bounded while preserving idempotent processing for repeated `T` messages over the configured window.
 
 ## Exactly-once and ordering
 
