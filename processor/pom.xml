@@ -68,7 +68,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>com.example.stateful.processor.ProcessorApplication</mainClass>
+                    <mainClass>com.example.stateful.processor.app.ProcessorApplication</mainClass>
                 </configuration>
             </plugin>
             <plugin>
