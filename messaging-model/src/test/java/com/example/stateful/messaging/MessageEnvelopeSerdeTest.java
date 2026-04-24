@@ -40,7 +40,7 @@ class MessageEnvelopeSerdeTest {
         mapper.findAndRegisterModules();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        MessageEnvelope original = MessageEnvelope.forS(new S("s-1", "IBM", 91L, 8L, true));
+        MessageEnvelope original = MessageEnvelope.forS(new S("s-1", "IBM", 91L, 9L, 8L, true));
 
         String json = mapper.writeValueAsString(original);
         MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
@@ -49,6 +49,7 @@ class MessageEnvelopeSerdeTest {
         assertEquals("s-1", parsed.s().id());
         assertEquals("IBM", parsed.s().pid());
         assertEquals(91L, parsed.s().q());
+        assertEquals(9L, parsed.s().q_carry());
         assertEquals(8L, parsed.s().q_a());
         assertTrue(parsed.s().rollover());
     }

@@ -192,6 +192,87 @@ class TopologyFactoryTest {
     }
 
     @Test
+    void negativeToNegativeAllocationWorks() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", -40L, 0L)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-N", false, -100L, 0L)), t0.plusMillis(1).toEpochMilli());
+
+            assertThat(output.readValue().ts().q_a()).isEqualTo(-40L);
+            T t = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items().get(0);
+            assertThat(t.q_a()).isEqualTo(-40L);
+        }
+    }
+
+    @Test
+    void positiveAndNegativeDoNotCrossAllocate() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-neg", "IBM", -30L, 0L)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-pos", "IBM", "R-P", false, 50L, 0L)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-pos", "IBM", 30L, 0L)), t0.plusMillis(2).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-neg", "IBM", "R-N", false, -50L, 0L)), t0.plusMillis(3).toEpochMilli());
+
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).hasSize(2);
+            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(30L, -30L);
+            assertThat(emitted).extracting(v -> v.ts().tid()).containsExactly("t-pos", "t-neg");
+            assertThat(emitted).extracting(v -> v.ts().sid()).containsExactly("s-pos", "s-neg");
+        }
+    }
+
+    @Test
+    void signedPartialAllocationLeavesNegativeOpenQuantity() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", -60L, 0L)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-N", false, -100L, 0L)), t0.plusMillis(1).toEpochMilli());
+
+            assertThat(output.readValue().ts().q_a()).isEqualTo(-60L);
+            T open = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items().get(0);
+            assertThat(open.q()).isEqualTo(-100L);
+            assertThat(open.q_a()).isEqualTo(-60L);
+        }
+    }
+
+    @Test
+    void signedRolloverCarryIsConsumedBeforeRegularSupply() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-roll", "IBM", -10L, -40L, 0L, true)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, -25L, 0L)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-2", "IBM", "R-2", false, -20L, 0L)), t0.plusMillis(2).toEpochMilli());
+
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(-25L, -20L);
+            S remaining = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items().get(0);
+            assertThat(remaining.q()).isEqualTo(-10L);
+            assertThat(remaining.q_carry()).isEqualTo(-40L);
+            assertThat(remaining.q_a()).isEqualTo(-45L);
+        }
+    }
+
+    @Test
     void tDedupeStillUsesPidRefCancel() throws Exception {
         TestHarness harness = new TestHarness();
 
@@ -234,7 +315,7 @@ class TopologyFactoryTest {
         assertThat(Arrays.stream(S.class.getRecordComponents()).map(c -> c.getName())).contains("rollover");
         assertThat(Arrays.stream(T.class.getRecordComponents()).map(c -> c.getName())).doesNotContain("rollover");
         assertThat(Arrays.stream(T.class.getRecordComponents()).map(c -> c.getName())).doesNotContain("q_carry");
-        assertThat(Arrays.stream(S.class.getRecordComponents()).map(c -> c.getName())).doesNotContain("q_carry");
+        assertThat(Arrays.stream(S.class.getRecordComponents()).map(c -> c.getName())).contains("q_carry");
     }
 
     private static final class TestHarness {

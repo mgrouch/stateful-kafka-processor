@@ -12,11 +12,15 @@ public record T(String id, String pid, String ref, boolean cancel, long q, long 
         requireText(pid, "pid");
         requireText(ref, "ref");
         a_status = a_status == null ? AllocationStatus.NORMAL : a_status;
-        if (q < 0) {
-            throw new IllegalArgumentException("q must be >= 0");
+
+        if (q == 0L) {
+            throw new IllegalArgumentException("q must not be 0");
         }
-        if (q_a < 0 || q_a > q) {
-            throw new IllegalArgumentException("q_a must satisfy 0 <= q_a <= q");
+        if (Long.signum(q_a) != 0 && Long.signum(q_a) != Long.signum(q)) {
+            throw new IllegalArgumentException("q_a must have same sign as q");
+        }
+        if (Math.abs(q_a) > Math.abs(q)) {
+            throw new IllegalArgumentException("q_a must satisfy abs(q_a) <= abs(q)");
         }
     }
 

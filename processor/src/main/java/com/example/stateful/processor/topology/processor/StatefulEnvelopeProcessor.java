@@ -158,7 +158,14 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     private AllocationResult allocateForIncomingT(T incomingT, List<S> candidates, String idPrefix) {
         requireSamePid(candidates.stream().map(S::pid).toList(), incomingT.pid(), "S candidate");
-        List<S> orderedCandidates = orderSCandidates(candidates);
+        long incomingTOpen = remainingT(incomingT);
+        List<S> signCompatibleCandidates = candidates.stream()
+                .filter(candidate -> areSignCompatible(incomingTOpen, remainingS(candidate)))
+                .toList();
+        List<S> untouchedCandidates = candidates.stream()
+                .filter(candidate -> !areSignCompatible(incomingTOpen, remainingS(candidate)))
+                .toList();
+        List<S> orderedCandidates = orderSCandidates(signCompatibleCandidates);
         ensureRolloverPriority(orderedCandidates);
 
         List<S> updatedS = new ArrayList<>();
@@ -167,26 +174,34 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         int tsIndex = 0;
 
         for (S candidate : orderedCandidates) {
-            long tRemaining = remaining(updatedT.q(), updatedT.q_a());
-            long sRemaining = remaining(candidate.q(), candidate.q_a());
-            long allocated = Math.min(tRemaining, sRemaining);
+            long tRemaining = remainingT(updatedT);
+            long sRemaining = remainingS(candidate);
+            long allocated = signedAllocation(tRemaining, sRemaining);
 
-            if (allocated > 0) {
+            if (allocated != 0) {
                 updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.cancel(), updatedT.q(), updatedT.q_a() + allocated, updatedT.a_status());
-                S nextS = new S(candidate.id(), candidate.pid(), candidate.q(), candidate.q_a() + allocated, candidate.rollover());
+                S nextS = new S(candidate.id(), candidate.pid(), candidate.q(), candidate.q_carry(), candidate.q_a() + allocated, candidate.rollover());
                 updatedS.add(nextS);
                 emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.q(), allocated));
             } else {
                 updatedS.add(candidate);
             }
         }
+        updatedS.addAll(untouchedCandidates);
 
         validateAllocationOutput(updatedT.pid(), List.of(updatedT), updatedS, emitted);
         return new AllocationResult(updatedT, updatedS, emitted);
     }
 
     private AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
-        List<T> orderedCandidates = orderTCandidates(candidates, incomingS.pid(), incomingS.id());
+        long incomingSOpen = remainingS(incomingS);
+        List<T> signCompatibleCandidates = candidates.stream()
+                .filter(candidate -> areSignCompatible(incomingSOpen, remainingT(candidate)))
+                .toList();
+        List<T> untouchedCandidates = candidates.stream()
+                .filter(candidate -> !areSignCompatible(incomingSOpen, remainingT(candidate)))
+                .toList();
+        List<T> orderedCandidates = orderTCandidates(signCompatibleCandidates, incomingS.pid(), incomingS.id());
         requireSamePid(orderedCandidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
         ensureFailPriority(orderedCandidates);
 
@@ -196,19 +211,20 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         int tsIndex = 0;
 
         for (T candidate : orderedCandidates) {
-            long sRemaining = remaining(updatedS.q(), updatedS.q_a());
-            long tRemaining = remaining(candidate.q(), candidate.q_a());
-            long allocated = Math.min(tRemaining, sRemaining);
+            long sRemaining = remainingS(updatedS);
+            long tRemaining = remainingT(candidate);
+            long allocated = signedAllocation(sRemaining, tRemaining);
 
-            if (allocated > 0) {
+            if (allocated != 0) {
                 T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.cancel(), candidate.q(), candidate.q_a() + allocated, candidate.a_status());
-                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.q(), updatedS.q_a() + allocated, updatedS.rollover());
+                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.rollover());
                 updatedT.add(nextT);
                 emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.q(), allocated));
             } else {
                 updatedT.add(candidate);
             }
         }
+        updatedT.addAll(untouchedCandidates);
 
         validateAllocationOutput(updatedS.pid(), updatedT, List.of(updatedS), emitted);
         return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
@@ -279,8 +295,8 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             if (!pid.equals(t.pid())) {
                 throw new IllegalStateException("allocate output has T with different pid");
             }
-            if (t.q_a() < 0 || t.q_a() > t.q()) {
-                throw new IllegalStateException("allocate output has T q_a outside [0,q]");
+            if (!isAllocatedWithinTotal(t.q(), t.q_a())) {
+                throw new IllegalStateException("allocate output has T q_a outside signed bounds of q");
             }
             allowedTid.add(t.id());
             tQuantityById.put(t.id(), t.q());
@@ -289,8 +305,8 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             if (!pid.equals(s.pid())) {
                 throw new IllegalStateException("allocate output has S with different pid");
             }
-            if (s.q_a() < 0 || s.q_a() > s.q()) {
-                throw new IllegalStateException("allocate output has S q_a outside [0,q]");
+            if (!isAllocatedWithinTotal(s.q() + s.q_carry(), s.q_a())) {
+                throw new IllegalStateException("allocate output has S q_a outside signed bounds of q + q_carry");
             }
             allowedSid.add(s.id());
         }
@@ -305,13 +321,13 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             if (!allowedSid.contains(ts.sid())) {
                 throw new IllegalStateException("allocate output references unknown TS.sid " + ts.sid());
             }
-            if (ts.q_a() <= 0) {
-                throw new IllegalStateException("allocate output has TS.q_a <= 0");
+            if (ts.q_a() == 0) {
+                throw new IllegalStateException("allocate output has TS.q_a == 0");
             }
             long allocatedForTid = allocatedByTid.getOrDefault(ts.tid(), 0L) + ts.q_a();
             allocatedByTid.put(ts.tid(), allocatedForTid);
             long sourceQ = tQuantityById.get(ts.tid());
-            if (allocatedForTid > sourceQ) {
+            if (!isAllocatedWithinTotal(sourceQ, allocatedForTid)) {
                 throw new IllegalStateException("allocate output over-allocates T id " + ts.tid());
             }
         }
@@ -499,16 +515,64 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     }
 
     private static boolean isOpen(T t) {
-        return t.q_a() < t.q();
+        return remainingT(t) != 0;
     }
 
     private static boolean isOpen(S s) {
-        return s.q_a() < s.q();
+        return remainingS(s) != 0;
     }
 
-    private static long remaining(long q, long qA) {
-        long remaining = q - qA;
-        return Math.max(remaining, 0);
+    private static long remainingT(T t) {
+        return signedRemaining(t.q(), t.q_a());
+    }
+
+    private static long remainingS(S s) {
+        SignedSupplyUsage usage = supplyUsage(s);
+        return usage.remainingCarry() + usage.remainingRegular();
+    }
+
+    private static long signedRemaining(long total, long allocated) {
+        return total - allocated;
+    }
+
+    private static boolean areSignCompatible(long lhs, long rhs) {
+        return lhs != 0 && rhs != 0 && Long.signum(lhs) == Long.signum(rhs);
+    }
+
+    private static long signedAllocation(long targetOpen, long sourceOpen) {
+        if (!areSignCompatible(targetOpen, sourceOpen)) {
+            return 0L;
+        }
+        long magnitude = Math.min(Math.abs(targetOpen), Math.abs(sourceOpen));
+        return Long.signum(targetOpen) * magnitude;
+    }
+
+    private static boolean isAllocatedWithinTotal(long total, long allocated) {
+        if (allocated == 0L) {
+            return true;
+        }
+        if (total == 0L || Long.signum(total) != Long.signum(allocated)) {
+            return false;
+        }
+        return Math.abs(allocated) <= Math.abs(total);
+    }
+
+    /**
+     * S allocation always consumes carry bucket before regular bucket.
+     * This helper is sign-safe for both positive and negative supplies.
+     */
+    private static SignedSupplyUsage supplyUsage(S s) {
+        long sign = Long.signum(s.q() + s.q_carry());
+        long carryMagnitude = Math.abs(s.q_carry());
+        long regularMagnitude = Math.abs(s.q());
+        long usedMagnitude = Math.abs(s.q_a());
+
+        long carryUsedMagnitude = Math.min(usedMagnitude, carryMagnitude);
+        long regularUsedMagnitude = Math.min(Math.max(usedMagnitude - carryMagnitude, 0L), regularMagnitude);
+
+        long remainingCarry = sign * (carryMagnitude - carryUsedMagnitude);
+        long remainingRegular = sign * (regularMagnitude - regularUsedMagnitude);
+        return new SignedSupplyUsage(remainingCarry, remainingRegular);
     }
 
     private record AllocationResult(
@@ -527,6 +591,9 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         private AllocationResult(T updatedIncomingT, List<S> updatedS, List<TS> emittedTs) {
             this(updatedIncomingT, updatedS, null, List.of(), emittedTs);
         }
+    }
+
+    private record SignedSupplyUsage(long remainingCarry, long remainingRegular) {
     }
 
     private static final class OrdinalRef {
