@@ -55,7 +55,7 @@ public final class SchemaSql {
                 event_id VARCHAR(255) NOT NULL UNIQUE
             );
             CREATE TABLE IF NOT EXISTS unprocessed_t_state (
-                pid VARCHAR(128) PRIMARY KEY,
+                pid VARCHAR(128) NOT NULL,
                 t_id VARCHAR(128) NOT NULL,
                 ref VARCHAR(128) NOT NULL,
                 cancel BOOLEAN NOT NULL,
@@ -65,10 +65,11 @@ public final class SchemaSql {
                 source_partition INT NOT NULL,
                 source_offset BIGINT NOT NULL,
                 source_timestamp BIGINT NOT NULL,
-                event_id VARCHAR(255) NOT NULL
+                event_id VARCHAR(255) NOT NULL,
+                PRIMARY KEY (pid, t_id)
             );
             CREATE TABLE IF NOT EXISTS unprocessed_s_state (
-                pid VARCHAR(128) PRIMARY KEY,
+                pid VARCHAR(128) NOT NULL,
                 s_id VARCHAR(128) NOT NULL,
                 q BIGINT NOT NULL,
                 q_a BIGINT NOT NULL,
@@ -76,7 +77,8 @@ public final class SchemaSql {
                 source_partition INT NOT NULL,
                 source_offset BIGINT NOT NULL,
                 source_timestamp BIGINT NOT NULL,
-                event_id VARCHAR(255) NOT NULL
+                event_id VARCHAR(255) NOT NULL,
+                PRIMARY KEY (pid, s_id)
             );
             CREATE TABLE IF NOT EXISTS kafka_consumer_offsets (
                 consumer_group VARCHAR(255) NOT NULL,
@@ -131,7 +133,7 @@ public final class SchemaSql {
             );
             IF OBJECT_ID('unprocessed_t_state', 'U') IS NULL
             CREATE TABLE unprocessed_t_state (
-                pid NVARCHAR(128) PRIMARY KEY,
+                pid NVARCHAR(128) NOT NULL,
                 t_id NVARCHAR(128) NOT NULL,
                 ref NVARCHAR(128) NOT NULL,
                 cancel BIT NOT NULL,
@@ -141,11 +143,12 @@ public final class SchemaSql {
                 source_partition INT NOT NULL,
                 source_offset BIGINT NOT NULL,
                 source_timestamp BIGINT NOT NULL,
-                event_id NVARCHAR(255) NOT NULL
+                event_id NVARCHAR(255) NOT NULL,
+                PRIMARY KEY (pid, t_id)
             );
             IF OBJECT_ID('unprocessed_s_state', 'U') IS NULL
             CREATE TABLE unprocessed_s_state (
-                pid NVARCHAR(128) PRIMARY KEY,
+                pid NVARCHAR(128) NOT NULL,
                 s_id NVARCHAR(128) NOT NULL,
                 q BIGINT NOT NULL,
                 q_a BIGINT NOT NULL,
@@ -153,7 +156,8 @@ public final class SchemaSql {
                 source_partition INT NOT NULL,
                 source_offset BIGINT NOT NULL,
                 source_timestamp BIGINT NOT NULL,
-                event_id NVARCHAR(255) NOT NULL
+                event_id NVARCHAR(255) NOT NULL,
+                PRIMARY KEY (pid, s_id)
             );
             IF OBJECT_ID('kafka_consumer_offsets', 'U') IS NULL
             CREATE TABLE kafka_consumer_offsets (

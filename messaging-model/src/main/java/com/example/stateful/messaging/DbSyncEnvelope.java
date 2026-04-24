@@ -54,9 +54,14 @@ public record DbSyncEnvelope(
                     throw new IllegalArgumentException("GENERATED_TS requires only ts payload");
                 }
             }
-            case DELETE_UNPROCESSED_T, DELETE_UNPROCESSED_S -> {
-                if (t != null || s != null || ts != null) {
-                    throw new IllegalArgumentException(type + " does not include payload");
+            case DELETE_UNPROCESSED_T -> {
+                if (t == null || s != null || ts != null) {
+                    throw new IllegalArgumentException("DELETE_UNPROCESSED_T requires only t payload");
+                }
+            }
+            case DELETE_UNPROCESSED_S -> {
+                if (s == null || t != null || ts != null) {
+                    throw new IllegalArgumentException("DELETE_UNPROCESSED_S requires only s payload");
                 }
             }
         }
