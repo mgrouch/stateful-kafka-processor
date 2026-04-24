@@ -27,8 +27,6 @@ public final class ProcessorApplication {
                 "app.input-topic", "input-events",
                 "app.output-topic", "processed-events",
                 "app.state-dir", "processor/kafka-streams-state",
-                "app.instance.partition-number", "0",
-                "app.instance.total-partitions", "1",
                 "app.commit-interval-ms", "100",
                 "spring.kafka.bootstrap-servers", "localhost:9092"
         ));

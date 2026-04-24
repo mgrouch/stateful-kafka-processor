@@ -33,15 +33,6 @@ Yes, this is a good fit for Kafka Streams for the workflow you described:
 - later matching logic between `T` and `S` can stay in the same stateful processor
 - later SQL copy is typically done with a separate consumer, Kafka Connect JDBC sink, or another downstream processor
 
-### Important caveat
-
-Kafka Streams manages task-to-partition assignment itself. This project still accepts:
-
-- `--app.instance.partition-number`
-- `--app.instance.total-partitions`
-
-but they are currently treated as **instance metadata and hash diagnostics**, not as a hard override of Kafka Streams partition assignment. If you truly need **manual static pinning of one JVM to one exact Kafka partition**, the lower-level Kafka consumer API is a better fit than Kafka Streams.
-
 ## Build
 
 From the repository root:
@@ -68,7 +59,7 @@ docker compose up -d kafka
 Run the processor:
 
 ```bash
-mvn -pl processor spring-boot:run   -Dspring-boot.run.arguments="--spring.kafka.bootstrap-servers=localhost:9092 --app.application-id=stateful-data-processor --app.input-topic=input-events --app.output-topic=processed-events --app.instance.partition-number=0 --app.instance.total-partitions=3"
+mvn -pl processor spring-boot:run   -Dspring-boot.run.arguments="--spring.kafka.bootstrap-servers=localhost:9092 --app.application-id=stateful-data-processor --app.input-topic=input-events --app.output-topic=processed-events"
 ```
 
 ## Topics
