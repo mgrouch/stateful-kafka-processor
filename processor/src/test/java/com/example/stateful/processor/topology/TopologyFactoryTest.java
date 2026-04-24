@@ -3,10 +3,10 @@ package com.example.stateful.processor.topology;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.messaging.DbSyncEnvelope;
-import com.example.stateful.messaging.DbSyncMutationType;
 import com.example.stateful.messaging.MessageEnvelope;
 import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
+import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.state.TBucket;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -26,99 +26,135 @@ import java.util.List;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TopologyFactoryTest {
 
     @Test
-    void acceptedTEmitsProcessedAndDbSyncEventsInStableOrderWithPidKey() throws Exception {
+    void newTWithoutMatchingSStaysUnprocessed() throws Exception {
         TestHarness harness = new TestHarness();
-
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
         try (TopologyTestDriver driver = harness.driver(t0)) {
-            TestInputTopic<String, MessageEnvelope> inputTopic = harness.input(driver, t0);
-            TestOutputTopic<String, MessageEnvelope> outputTopic = harness.output(driver);
-            TestOutputTopic<String, DbSyncEnvelope> dbSyncOutput = harness.dbSyncOutput(driver);
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 100L, 0L)), t0.toEpochMilli());
 
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 100L)), t0.toEpochMilli());
-
-            assertThat(outputTopic.readKeyValue())
-                    .extracting(kv -> kv.key, kv -> kv.value.ts().id())
-                    .containsExactly("IBM", "ts-t-1");
-
-            assertThat(dbSyncOutput.readKeyValuesToList())
-                    .extracting(kv -> kv.key, kv -> kv.value.mutationType(), kv -> kv.value.ordinal())
-                    .containsExactly(
-                            org.assertj.core.groups.Tuple.tuple("IBM", DbSyncMutationType.ACCEPTED_T, 0),
-                            org.assertj.core.groups.Tuple.tuple("IBM", DbSyncMutationType.UPSERT_UNPROCESSED_T, 1),
-                            org.assertj.core.groups.Tuple.tuple("IBM", DbSyncMutationType.GENERATED_TS, 2)
-                    );
-
+            assertThat(output.isEmpty()).isTrue();
             KeyValueStore<String, TBucket> tStore = driver.getKeyValueStore(StateStores.UNPROCESSED_T_STORE);
-            assertThat(tStore.get("IBM").items()).extracting(T::id).containsExactly("t-1");
+            TBucket bucket = tStore.get("IBM");
+            assertThat(bucket.items()).hasSize(1);
+            assertThat(bucket.items().get(0).q_a()).isZero();
         }
     }
 
     @Test
-    void acceptedSEmitsDbSyncEventsWithPidKey() throws Exception {
+    void newSWithoutMatchingTStaysUnprocessed() throws Exception {
         TestHarness harness = new TestHarness();
-
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
         try (TopologyTestDriver driver = harness.driver(t0)) {
-            TestInputTopic<String, MessageEnvelope> inputTopic = harness.input(driver, t0);
-            TestOutputTopic<String, DbSyncEnvelope> dbSyncOutput = harness.dbSyncOutput(driver);
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 25L, 0L)), t0.toEpochMilli());
 
-            inputTopic.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 10L)), t0.toEpochMilli());
-
-            List<DbSyncEnvelope> events = dbSyncOutput.readValuesToList();
-            assertThat(events).extracting(DbSyncEnvelope::mutationType)
-                    .containsExactly(DbSyncMutationType.ACCEPTED_S, DbSyncMutationType.UPSERT_UNPROCESSED_S);
-            assertThat(events).extracting(DbSyncEnvelope::pid).containsOnly("IBM");
+            KeyValueStore<String, SBucket> sStore = driver.getKeyValueStore(StateStores.UNPROCESSED_S_STORE);
+            SBucket bucket = sStore.get("IBM");
+            assertThat(bucket.items()).hasSize(1);
+            assertThat(bucket.items().get(0).q_a()).isZero();
         }
     }
 
     @Test
-    void tDeduplicationUsesPidRefCancelWithTwoWeekWindow() throws Exception {
+    void newTPartiallyAllocatedByMatchingSRemainsOpen() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 40L, 0L)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
+
+            assertThat(output.readValue().ts().q_a()).isEqualTo(40L);
+            T t = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items().get(0);
+            assertThat(t.q_a()).isEqualTo(40L);
+            assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items()).isEmpty();
+        }
+    }
+
+    @Test
+    void newTFullyAllocatedByMatchingSRemovedFromUnprocessedT() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 120L, 0L)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
+
+            assertThat(output.readValue().ts().q_a()).isEqualTo(100L);
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items()).isEmpty();
+            assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items().get(0).q_a()).isEqualTo(100L);
+        }
+    }
+
+    @Test
+    void newSPartiallyMatchesExistingTsAndOnlyClosedTsAreRemoved() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 30L, 0L)), t0.toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forT(new T("t-2", "IBM", "R-2", false, 30L, 0L)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 40L, 0L)), t0.plusMillis(2).toEpochMilli());
+
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).hasSize(2);
+            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(30L, 10L);
+
+            List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items();
+            assertThat(openT).hasSize(1);
+            assertThat(openT.get(0).id()).isEqualTo("t-2");
+            assertThat(openT.get(0).q_a()).isEqualTo(10L);
+            assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("IBM").items()).isEmpty();
+        }
+    }
+
+    @Test
+    void tDedupeStillUsesPidRefCancel() throws Exception {
         TestHarness harness = new TestHarness();
 
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
         long withinWindow = t0.plus(Duration.ofDays(13)).toEpochMilli();
-        long outsideWindow = t0.plus(Duration.ofDays(15)).toEpochMilli();
 
         try (TopologyTestDriver driver = harness.driver(t0)) {
             TestInputTopic<String, MessageEnvelope> inputTopic = harness.input(driver, t0);
-            TestOutputTopic<String, MessageEnvelope> outputTopic = harness.output(driver);
+            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 100L, 0L)), t0.toEpochMilli());
+            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-2", "IBM", "R-1", false, 101L, 0L)), withinWindow);
 
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-1", "IBM", "R-1", false, 100L)), t0.toEpochMilli());
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-2", "IBM", "R-1", false, 101L)), withinWindow);
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-3", "IBM", "R-1", false, 102L)), outsideWindow);
-
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-4", "IBM", "R-2", false, 103L)), withinWindow);
-            inputTopic.pipeInput("IBM", MessageEnvelope.forT(new T("t-5", "IBM", "R-1", true, 104L)), withinWindow);
-            inputTopic.pipeInput("MSFT", MessageEnvelope.forT(new T("t-6", "MSFT", "R-1", false, 105L)), withinWindow);
-
-            assertThat(outputTopic.readKeyValuesToList())
-                    .extracting(kv -> kv.key, kv -> kv.value.ts().id())
-                    .containsExactly(
-                            org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-1"),
-                            org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-3"),
-                            org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-4"),
-                            org.assertj.core.groups.Tuple.tuple("IBM", "ts-t-5"),
-                            org.assertj.core.groups.Tuple.tuple("MSFT", "ts-t-6")
-                    );
-
-            KeyValueStore<String, TBucket> tStore = driver.getKeyValueStore(StateStores.UNPROCESSED_T_STORE);
-            KeyValueStore<String, Long> dedupeStore = driver.getKeyValueStore(StateStores.T_DEDUPE_STORE);
-
-            assertThat(tStore.get("IBM").items()).extracting(T::id).containsExactly("t-1", "t-3", "t-4", "t-5");
-            assertThat(tStore.get("MSFT").items()).extracting(T::id).containsExactly("t-6");
-
-            assertThat(dedupeStore.get("IBM|R-1|false")).isEqualTo(outsideWindow);
-            assertThat(dedupeStore.get("IBM|R-2|false")).isEqualTo(withinWindow);
-            assertThat(dedupeStore.get("IBM|R-1|true")).isEqualTo(withinWindow);
-            assertThat(dedupeStore.get("MSFT|R-1|false")).isEqualTo(withinWindow);
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("IBM").items())
+                    .extracting(T::id)
+                    .containsExactly("t-1");
         }
     }
 
+    @Test
+    void invalidAllocationStateFailsFast() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            assertThatThrownBy(() -> input.pipeInput("IBM", MessageEnvelope.forS(new S("s-1", "IBM", 1L, 2L)), t0.toEpochMilli()))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
 
     @Test
     void topologyContainsOnlyExpectedStateStores() throws Exception {
@@ -127,6 +163,7 @@ class TopologyFactoryTest {
         String description = TopologyFactory.describe(topology);
         assertThat(description).contains(StateStores.UNPROCESSED_T_STORE, StateStores.UNPROCESSED_S_STORE, StateStores.T_DEDUPE_STORE);
     }
+
     private static final class TestHarness {
         private final SerdeFactory serdeFactory;
         private final ProcessorSettings settings;
@@ -172,6 +209,7 @@ class TopologyFactoryTest {
             );
         }
 
+        @SuppressWarnings("unused")
         private TestOutputTopic<String, DbSyncEnvelope> dbSyncOutput(TopologyTestDriver driver) {
             return driver.createOutputTopic(
                     settings.dbSyncTopic(),

@@ -66,8 +66,8 @@ class KafkaProcessorIT {
                  KafkaConsumer<String, MessageEnvelope> consumer = consumer(serdeFactory, outputTopic);
                  KafkaConsumer<String, DbSyncEnvelope> dbConsumer = dbSyncConsumer(serdeFactory, dbSyncTopic)) {
 
-                producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forT(new T("t-101", "IBM", "ref-101", false, 1000L)))).get();
-                producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forS(new S("s-101", "IBM", 500L)))).get();
+                producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forT(new T("t-101", "IBM", "ref-101", false, 1000L, 0L)))).get();
+                producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forS(new S("s-101", "IBM", 500L, 0L)))).get();
                 producer.flush();
 
                 ConsumerRecord<String, MessageEnvelope> output = pollOne(consumer, Duration.ofSeconds(30));
@@ -76,19 +76,20 @@ class KafkaProcessorIT {
                 assertThat(output.value().kind().name()).isEqualTo("TS");
                 assertThat(output.value().ts().id()).isEqualTo("ts-t-101");
                 assertThat(output.value().ts().pid()).isEqualTo("IBM");
-                assertThat(output.value().ts().q()).isEqualTo(1000L);
+                assertThat(output.value().ts().q_a()).isEqualTo(500L);
                 assertThat(dbSyncOutput.key()).isEqualTo("IBM");
 
                 Optional<TBucket> tBucket = waitFor(() -> manager.readUnprocessedT("IBM"), Duration.ofSeconds(15));
                 Optional<SBucket> sBucket = waitFor(() -> manager.readUnprocessedS("IBM"), Duration.ofSeconds(15));
 
                 assertThat(tBucket).isPresent();
+                assertThat(tBucket).isPresent();
                 assertThat(tBucket.get().items()).hasSize(1);
                 assertThat(tBucket.get().items().get(0).id()).isEqualTo("t-101");
+                assertThat(tBucket.get().items().get(0).q_a()).isEqualTo(500L);
 
                 assertThat(sBucket).isPresent();
-                assertThat(sBucket.get().items()).hasSize(1);
-                assertThat(sBucket.get().items().get(0).id()).isEqualTo("s-101");
+                assertThat(sBucket.get().items()).isEmpty();
             }
         }
     }

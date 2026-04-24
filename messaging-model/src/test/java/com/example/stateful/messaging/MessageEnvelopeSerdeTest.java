@@ -11,12 +11,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MessageEnvelopeSerdeTest {
 
     @Test
-    void tEnvelopeRoundTripsWithRefAndCancel() throws Exception {
+    void tEnvelopeRoundTripsWithRefCancelAndAllocationState() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         mapper.findAndRegisterModules();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "IBM", "REF-10", true, 77L));
+        MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "IBM", "REF-10", true, 77L, 11L));
 
         String json = mapper.writeValueAsString(original);
         MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
@@ -27,5 +27,6 @@ class MessageEnvelopeSerdeTest {
         assertEquals("REF-10", parsed.t().ref());
         assertTrue(parsed.t().cancel());
         assertEquals(77L, parsed.t().q());
+        assertEquals(11L, parsed.t().q_a());
     }
 }
