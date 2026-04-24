@@ -1,14 +1,23 @@
 package com.example.stateful.domain;
 
 import java.util.Objects;
+import java.time.LocalDate;
 
-public record T(String id, String pid, String ref, boolean cancel, long q, long q_a, AStatus a_status, TT tt) {
+public record T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a, AStatus a_status, TT tt) {
     public T(String id, String pid, String ref, boolean cancel, long q, long q_a) {
-        this(id, pid, ref, cancel, q, q_a, AStatus.NORMAL, TT.B);
+        this(id, pid, ref, null, cancel, q, q_a, AStatus.NORMAL, TT.B);
     }
 
     public T(String id, String pid, String ref, boolean cancel, long q, long q_a, AStatus a_status) {
-        this(id, pid, ref, cancel, q, q_a, a_status, TT.B);
+        this(id, pid, ref, null, cancel, q, q_a, a_status, TT.B);
+    }
+
+    public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a) {
+        this(id, pid, ref, tDate, cancel, q, q_a, AStatus.NORMAL, TT.B);
+    }
+
+    public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a, AStatus a_status) {
+        this(id, pid, ref, tDate, cancel, q, q_a, a_status, TT.B);
     }
 
     public T {
