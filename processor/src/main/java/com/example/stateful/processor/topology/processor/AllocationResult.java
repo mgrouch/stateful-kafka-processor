@@ -6,20 +6,20 @@ import com.example.stateful.domain.TS;
 
 import java.util.List;
 
-record AllocationResult(
+public record AllocationResult(
         T updatedIncomingT,
         List<S> updatedS,
         S updatedIncomingS,
         List<T> updatedT,
         List<TS> emittedTs
 ) {
-    AllocationResult {
+    public AllocationResult {
         updatedS = List.copyOf(updatedS);
         updatedT = List.copyOf(updatedT);
         emittedTs = List.copyOf(emittedTs);
     }
 
-    AllocationResult(T updatedIncomingT, List<S> updatedS, List<TS> emittedTs) {
+    public AllocationResult(T updatedIncomingT, List<S> updatedS, List<TS> emittedTs) {
         this(updatedIncomingT, updatedS, null, List.of(), emittedTs);
     }
 }
