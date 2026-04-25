@@ -42,11 +42,11 @@ For each $p\in P$ we process records keyed by $p$.
 \begin{definition}[Core records]
 A $T$ record is
 \[
-T=(id,p,ref,\tau,cancel,q,q_a,a,\theta_T),
+T=(id,p,ref,\tau,cancel,q,q_a_total,q_a_delta_last,a,\theta_T),
 \]
 with $q\in\mathbb{Z}\setminus\{0\}$ and constraints
 \[
-\operatorname{sgn}(q_a)\in\{0,\operatorname{sgn}(q)\},\qquad |q_a|\le |q|.
+\operatorname{sgn}(q_a_total)\in\{0,\operatorname{sgn}(q)\},\qquad |q_a_total|\le |q|.
 \]
 An $S$ record is
 \[
@@ -61,17 +61,17 @@ with $q+q_{carry}\neq 0$ and constraints
 \]
 A $TS$ record is
 \[
-TS=(id,p,tid,sid,\tau,\beta,q,q_a,\theta_{TS}),
+TS=(id,p,tid,sid,\tau,\beta,q,q_a_delta,q_a_total_after,\theta_{TS}),
 \]
 with
 \[
-\operatorname{sgn}(q_a)=\operatorname{sgn}(q),\qquad |q_a|\le |q|.
+\operatorname{sgn}(q_a_delta)=\operatorname{sgn}(q),\qquad |q_a_delta|\le |q|,\quad\operatorname{sgn}(q_a_total_after)\in\{0,\operatorname{sgn}(q)\},\quad |q_a_total_after|\le |q|.
 \]
 \end{definition}
 
 \begin{definition}[Residual operators]
 \[
-R_T(T):=q-q_a,
+R_T(T):=q-q_a_total,
 \]
 and for $S$ define
 \[
@@ -117,11 +117,11 @@ Hence positive residuals allocate only with positive residuals, and negative res
 \begin{remark}[Operational update rule]
 If $\delta=\mathrm{Alloc}(R_T,R_S)\neq 0$, then both allocators move by the same signed amount:
 \[
-q_a^{(T)} \gets q_a^{(T)} + \delta,\qquad q_a^{(S)} \gets q_a^{(S)} + \delta,
+q_{a,total}^{(T)} \gets q_{a,total}^{(T)} + \delta,\quad q_{a,\Delta,last}^{(T)} \gets \delta,\quad q_a^{(S)} \gets q_a^{(S)} + \delta,
 \]
 and emitted link value satisfies
 \[
-q_a^{(TS)}=\delta,\qquad \operatorname{sgn}(q_a^{(TS)})=\operatorname{sgn}(R_T)=\operatorname{sgn}(R_S).
+q_{a,\Delta}^{(TS)}=\delta,\qquad q_{a,total,after}^{(TS)}=q_{a,total}^{(T)},\qquad \operatorname{sgn}(q_{a,\Delta}^{(TS)})=\operatorname{sgn}(R_T)=\operatorname{sgn}(R_S).
 \]
 If compatibility fails, $\delta=0$ and no $TS$ is emitted.
 \end{remark}
@@ -156,7 +156,7 @@ Given incoming $T_{in}$:
   \item Otherwise insert/update $\mathcal{D}[d]$ and emit mutation \texttt{ACCEPTED\_T}.
   \item Select compatible candidates from $\mathcal{S}_p$ by $\mathrm{Compat}(R_T(T_{in}),R_S(S_j))$.
   \item Order candidates by $(\neg roll, id)$ so $roll=true$ precedes $roll=false$.
-  \item For each ordered $S_j$, compute $\delta_j=\mathrm{Alloc}(R_T,R_S)$, update $q_a$ of both records, and emit one $TS_j$ when $\delta_j\neq 0$.
+  \item For each ordered $S_j$, compute $\delta_j=\mathrm{Alloc}(R_T,R_S)$, update $q_a$ for $S$ and $q_{a,total}$/$q_{a,\Delta,last}$ for $T$, and emit one $TS_j$ when $\delta_j\neq 0$.
   \item For every emitted $TS_j$: forward to processed stream and emit mutation \texttt{GENERATED\_TS}.
   \item Rewrite $\mathcal{S}_p$ with updated open items (emit upsert/delete mutations item-wise).
   \item If updated $T_{in}$ is open, upsert into $\mathcal{T}_p$ (emit \texttt{UPSERT\_UNPROCESSED\_T}); else remove by $id$ (emit \texttt{DELETE\_UNPROCESSED\_T}).
@@ -174,7 +174,7 @@ Given incoming $S_{in}$:
   \[
   \theta_S=D \Rightarrow \forall T_i\in\mathcal{T}_p \text{ with } q_i>0:\ q_{a,i}\gets q_i.
   \]
-  Each such full close emits $TS$ with $q_a^{(TS)}=R_T(T_i)$, and closed $T_i$ are removed from $\mathcal{T}_p$.
+  Each such full close emits $TS$ with $q_{a,\Delta}^{(TS)}=R_T(T_i)$ and $q_{a,total,after}^{(TS)}=q^{(T_i)}$, and closed $T_i$ are removed from $\mathcal{T}_p$.
   \item On the remaining $T$ candidates, select compatible candidates by $\mathrm{Compat}(R_S(S_{in}),R_T(T_i))$.
   \item Partition these candidates into $a=\texttt{FAIL}$ and $a\neq\texttt{FAIL}$ buckets.
   \item Canonically sort by $id$ in each bucket, then apply deterministic shuffle with seed
@@ -225,7 +225,7 @@ All generated $TS$ and rewritten records preserve partition key $p$.
 \begin{proposition}[Bounded allocation]
 For every update, signed allocated value respects source bounds; no over-allocation occurs:
 \[
-|q_a|\le |q| \text{ for } T,TS,
+|q_a_total|\le |q| \text{ for } T,\quad |q_a_delta|,|q_a_total_after|\le |q| \text{ for } TS,
 \qquad |q_a|\le |q+q_{carry}| \text{ for } S.
 \]
 \end{proposition}
@@ -260,7 +260,7 @@ Type & Role \\
 \If{$\delta \neq 0$}
   \State update left allocation accumulator by $+\delta$
   \State update right allocation accumulator by $+\delta$
-  \State emit link object with scalar $q_a=\delta$
+  \State emit link object with scalars $q_a_delta=\delta$ and $q_a_total_after=q_a_total^{(T)}$
 \EndIf
 \end{algorithmic}
 \end{algorithm}

@@ -90,7 +90,8 @@ class KafkaProcessorIT {
                 assertThat(output.value().kind().name()).isEqualTo("TS");
                 assertThat(output.value().ts().id()).startsWith("ts-s-s-101-");
                 assertThat(output.value().ts().pid()).isEqualTo("AAA");
-                assertThat(output.value().ts().q_a()).isEqualTo(500L);
+                assertThat(output.value().ts().q_a_delta()).isEqualTo(500L);
+                assertThat(output.value().ts().q_a_total_after()).isEqualTo(500L);
                 assertThat(dbSyncOutput.key()).isEqualTo("AAA");
 
                 Optional<TBucket> tBucket = waitFor(() -> manager.readUnprocessedT("AAA"), Duration.ofSeconds(15));
@@ -100,7 +101,8 @@ class KafkaProcessorIT {
                 assertThat(tBucket).isPresent();
                 assertThat(tBucket.get().items()).hasSize(1);
                 assertThat(tBucket.get().items().get(0).id()).isEqualTo("t-101");
-                assertThat(tBucket.get().items().get(0).q_a()).isEqualTo(500L);
+                assertThat(tBucket.get().items().get(0).q_a_total()).isEqualTo(500L);
+                assertThat(tBucket.get().items().get(0).q_a_delta_last()).isEqualTo(500L);
 
                 assertThat(sBucket).isPresent();
                 assertThat(sBucket.get().items()).isEmpty();

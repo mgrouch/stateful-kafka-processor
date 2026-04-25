@@ -111,7 +111,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, allocation.updatedIncomingT(), null, null, record, ordinal);
         }
 
-        log.info("Processed T id={} pid={} q={} q_a={}", allocation.updatedIncomingT().id(), pid, allocation.updatedIncomingT().q(), allocation.updatedIncomingT().q_a());
+        log.info("Processed T id={} pid={} q={} q_a_total={}", allocation.updatedIncomingT().id(), pid, allocation.updatedIncomingT().q(), allocation.updatedIncomingT().q_a_total());
     }
 
     private void handleS(Record<String, MessageEnvelope> record, String pid, int ordinal) {

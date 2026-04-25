@@ -47,7 +47,7 @@ class TopologyFactoryTest {
             KeyValueStore<String, TBucket> tStore = driver.getKeyValueStore(StateStores.UNPROCESSED_T_STORE);
             TBucket bucket = tStore.get("AAA");
             assertThat(bucket.items()).hasSize(1);
-            assertThat(bucket.items().get(0).q_a()).isZero();
+            assertThat(bucket.items().get(0).q_a_total()).isZero();
         }
     }
 
@@ -79,9 +79,12 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 40L, 0L)), t0.toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
 
-            assertThat(output.readValue().ts().q_a()).isEqualTo(40L);
+            MessageEnvelope ts = output.readValue();
+            assertThat(ts.ts().q_a_delta()).isEqualTo(40L);
+            assertThat(ts.ts().q_a_total_after()).isEqualTo(40L);
             T t = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items().get(0);
-            assertThat(t.q_a()).isEqualTo(40L);
+            assertThat(t.q_a_total()).isEqualTo(40L);
+            assertThat(t.q_a_delta_last()).isEqualTo(40L);
             assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items()).isEmpty();
         }
     }
@@ -98,7 +101,7 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 120L, 0L)), t0.toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
 
-            assertThat(output.readValue().ts().q_a()).isEqualTo(100L);
+            assertThat(output.readValue().ts().q_a_total_after()).isEqualTo(100L);
             assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
             assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0).q_a()).isEqualTo(100L);
         }
@@ -119,12 +122,12 @@ class TopologyFactoryTest {
 
             List<MessageEnvelope> emitted = output.readValuesToList();
             assertThat(emitted).hasSize(2);
-            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(30L, 10L);
+            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactly(30L, 10L);
 
             List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items();
             assertThat(openT).hasSize(1);
             assertThat(openT.get(0).id()).isEqualTo(emitted.get(1).ts().tid());
-            assertThat(openT.get(0).q_a()).isEqualTo(10L);
+            assertThat(openT.get(0).q_a_total()).isEqualTo(10L);
             assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items()).isEmpty();
         }
     }
@@ -146,12 +149,12 @@ class TopologyFactoryTest {
             List<MessageEnvelope> emitted = output.readValuesToList();
             assertThat(emitted).hasSize(3);
             assertThat(emitted.get(0).ts().tid()).isEqualTo("t-fail");
-            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(30L, 30L, 10L);
+            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactly(30L, 30L, 10L);
 
             List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items();
             assertThat(openT).hasSize(1);
             assertThat(openT.get(0).id()).isEqualTo(emitted.get(2).ts().tid());
-            assertThat(openT.get(0).q_a()).isEqualTo(10L);
+            assertThat(openT.get(0).q_a_total()).isEqualTo(10L);
 
             assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items()).isEmpty();
         }
@@ -204,9 +207,12 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", -40L, 0L)), t0.toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-N", null, false, -100L, 0L, AStatus.NORMAL, TT.S)), t0.plusMillis(1).toEpochMilli());
 
-            assertThat(output.readValue().ts().q_a()).isEqualTo(-40L);
+            MessageEnvelope ts = output.readValue();
+            assertThat(ts.ts().q_a_delta()).isEqualTo(-40L);
+            assertThat(ts.ts().q_a_total_after()).isEqualTo(-40L);
             T t = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items().get(0);
-            assertThat(t.q_a()).isEqualTo(-40L);
+            assertThat(t.q_a_total()).isEqualTo(-40L);
+            assertThat(t.q_a_delta_last()).isEqualTo(-40L);
         }
     }
 
@@ -226,7 +232,7 @@ class TopologyFactoryTest {
 
             List<MessageEnvelope> emitted = output.readValuesToList();
             assertThat(emitted).hasSize(2);
-            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(30L, -30L);
+            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactly(30L, -30L);
             assertThat(emitted).extracting(v -> v.ts().tid()).containsExactly("t-pos", "t-neg");
             assertThat(emitted).extracting(v -> v.ts().sid()).containsExactly("s-pos", "s-neg");
         }
@@ -244,10 +250,10 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", -60L, 0L)), t0.toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-N", null, false, -100L, 0L, AStatus.NORMAL, TT.S)), t0.plusMillis(1).toEpochMilli());
 
-            assertThat(output.readValue().ts().q_a()).isEqualTo(-60L);
+            assertThat(output.readValue().ts().q_a_total_after()).isEqualTo(-60L);
             T open = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items().get(0);
             assertThat(open.q()).isEqualTo(-100L);
-            assertThat(open.q_a()).isEqualTo(-60L);
+            assertThat(open.q_a_total()).isEqualTo(-60L);
         }
     }
 
@@ -265,7 +271,7 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-2", "AAA", "R-2", null, false, -20L, 0L, AStatus.NORMAL, TT.S)), t0.plusMillis(2).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
-            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(-25L, -20L);
+            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactly(-25L, -20L);
             S remaining = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0);
             assertThat(remaining.q()).isEqualTo(-10L);
             assertThat(remaining.q_carry()).isEqualTo(-40L);
@@ -290,7 +296,7 @@ class TopologyFactoryTest {
             List<MessageEnvelope> emitted = output.readValuesToList();
             assertThat(emitted).hasSize(2);
             assertThat(emitted).extracting(v -> v.ts().tid()).containsExactly("t-neg-2", "t-neg-1");
-            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactly(-15L, -15L);
+            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactly(-15L, -15L);
 
             assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0);
@@ -315,7 +321,7 @@ class TopologyFactoryTest {
             List<MessageEnvelope> emitted = output.readValuesToList();
             assertThat(emitted).hasSize(2);
             assertThat(emitted).extracting(v -> v.ts().tid()).containsExactlyInAnyOrder("t-pos-1", "t-pos-2");
-            assertThat(emitted).extracting(v -> v.ts().q_a()).containsExactlyInAnyOrder(30L, 30L);
+            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactlyInAnyOrder(30L, 30L);
 
             assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0);

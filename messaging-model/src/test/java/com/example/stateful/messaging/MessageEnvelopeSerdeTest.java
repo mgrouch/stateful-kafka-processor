@@ -30,7 +30,8 @@ class MessageEnvelopeSerdeTest {
         assertEquals("REF-10", parsed.t().ref());
         assertTrue(parsed.t().cancel());
         assertEquals(77L, parsed.t().q());
-        assertEquals(11L, parsed.t().q_a());
+        assertEquals(11L, parsed.t().q_a_total());
+        assertEquals(0L, parsed.t().q_a_delta_last());
         assertEquals(AStatus.FAIL, parsed.t().a_status());
     }
 
@@ -69,6 +70,28 @@ class MessageEnvelopeSerdeTest {
         assertEquals("AAA", parsed.ts().pid());
         assertEquals("t-1", parsed.ts().tid());
         assertEquals("s-1", parsed.ts().sid());
-        assertEquals(12L, parsed.ts().q_a());
+        assertEquals(12L, parsed.ts().q_a_delta());
+        assertEquals(12L, parsed.ts().q_a_total_after());
+    }
+
+    @Test
+    void legacyQaFieldsDeserializeIntoRenamedFields() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.findAndRegisterModules();
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+        String tJson = """
+                {"kind":"T","t":{"id":"t-legacy","pid":"AAA","ref":"REF-1","cancel":false,"q":100,"q_a":40}}
+                """;
+        MessageEnvelope parsedT = mapper.readValue(tJson, MessageEnvelope.class);
+        assertEquals(40L, parsedT.t().q_a_total());
+        assertEquals(0L, parsedT.t().q_a_delta_last());
+
+        String tsJson = """
+                {"kind":"TS","ts":{"id":"ts-legacy","pid":"AAA","tid":"t-legacy","sid":"s-legacy","q":100,"q_a_delta":30,"q_a":70}}
+                """;
+        MessageEnvelope parsedTs = mapper.readValue(tsJson, MessageEnvelope.class);
+        assertEquals(30L, parsedTs.ts().q_a_delta());
+        assertEquals(70L, parsedTs.ts().q_a_total_after());
     }
 }
