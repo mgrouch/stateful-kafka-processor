@@ -1,6 +1,7 @@
 package com.example.stateful.processor.topology;
 
 import com.example.stateful.domain.AStatus;
+import com.example.stateful.domain.Dir;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TT;
@@ -12,6 +13,7 @@ import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.state.TBucket;
 import com.example.stateful.processor.logic.AllocationStrategy;
+import com.example.stateful.processor.logic.AutoAllocOppositeStrategy;
 import com.example.stateful.processor.logic.NaiveAlocationStrategy;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -331,6 +333,35 @@ class TopologyFactoryTest {
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0);
             assertThat(openS.id()).isEqualTo("s-r");
             assertThat(openS.q_a()).isZero();
+        }
+    }
+
+    @Test
+    void autoAllocOppositeStrategyFullyAllocatesOppositeSignTAndUpdatesSDelta() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0, new AutoAllocOppositeStrategy(1357911L))) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-open", "AAA", "R-N-1", null, false, -15L, -5L, AStatus.NORM, TT.S)), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-closed", "AAA", "R-N-2", null, false, -20L, -20L, AStatus.NORM, TT.S)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-pos", "AAA", "R-P-1", false, 8L, 0L)), t0.plusMillis(2).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forS(new S("s-r", "AAA", null, 10L, 0L, 0L, 0L, 3L, false, Dir.R, null)), t0.plusMillis(3).toEpochMilli());
+
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).extracting(v -> v.ts().tid()).containsExactly("t-neg-open", "t-pos");
+            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactly(-10L, 8L);
+            assertThat(emitted).extracting(v -> v.ts().q_a_total_after()).containsExactly(-15L, 8L);
+
+            S storedS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0);
+            assertThat(storedS.q_a()).isEqualTo(8L);
+            assertThat(storedS.q_a_opposite_delta()).isEqualTo(-10L);
+            assertThat(storedS.q_a_opposite_total()).isEqualTo(-7L);
+
+            List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items();
+            assertThat(openT).extracting(T::id).doesNotContain("t-neg-open", "t-neg-closed", "t-pos");
         }
     }
 
