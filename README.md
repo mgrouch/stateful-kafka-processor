@@ -6,7 +6,62 @@ This repository contains a Java 17, Maven, Spring Boot, multi-module project for
 
 - `domain-model`: domain records `T`, `S`, `TS`
 - `messaging-model`: `MessageEnvelope`, `DbSyncEnvelope`, and related enums
-- `processor`: Kafka Streams topology, state stores, DB sync writer, SQL schema, tests
+- `processor`: Kafka Streams topology, state stores, signed allocation logic, mutation emission
+- `db-sync-app`: SQL writer that consumes `db-sync-events` and applies mutations transactionally
+
+## Exact domain structure (`T`, `S`, `TS`)
+
+The runtime contract follows the Java records exactly.
+
+### `T`
+
+```text
+T(
+  id, pid, ref, accId,
+  tt, tDate, sDate, a_status, cancel,
+  q, q_a_total, q_a_delta_last, q_f
+)
+```
+
+Validation and defaults:
+- `id`, `pid`, `ref` are non-null/non-blank.
+- `accId` is optional but cannot be blank when present.
+- `tt` defaults to `B` when null.
+- `a_status` defaults to `NORM` when null.
+- `q != 0`; sign enforced by `tt`:
+  - `tt in {B, CS}` => `q > 0`
+  - `tt in {S, SS}` => `q < 0`
+- `q_a_total` sign must match `q` (or be 0), and `abs(q_a_total) <= abs(q)`.
+- `q_a_delta_last` sign must match `q` when non-zero, and `abs(q_a_delta_last) <= abs(q)`.
+- `a_status == FAIL` requires `q_f != 0`.
+
+### `S`
+
+```text
+S(id, pid, bDate, q, q_carry, q_a, rollover, dir)
+```
+
+Validation and defaults:
+- `id`, `pid` are non-null/non-blank.
+- `dir` defaults from `q` when null (`q<0 => D`, `q>0 => R`).
+- `q + q_carry != 0`.
+- If both `q` and `q_carry` are non-zero, they must share sign.
+- `dir == D => q < 0`; `dir == R => q > 0`.
+- `q_a` sign must match `q + q_carry` (or be 0), and `abs(q_a) <= abs(q + q_carry)`.
+
+### `TS`
+
+```text
+TS(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt)
+```
+
+Validation and defaults:
+- `id`, `pid`, `tid`, `sid` are non-null/non-blank.
+- `accId` is optional but cannot be blank when present.
+- `tt` defaults to `B` when null.
+- `q != 0`.
+- `q_a_delta` sign matches `q` and `abs(q_a_delta) <= abs(q)`.
+- `q_a_total_after` sign matches `q` (or is 0) and `abs(q_a_total_after) <= abs(q)`.
 
 ## Runtime behavior
 
@@ -15,69 +70,104 @@ This repository contains a Java 17, Maven, Spring Boot, multi-module project for
 - DB sync output topic: `db-sync-events`
 - Kafka key remains `pid` for all topics.
 
-Kafka Streams state stores are kept only for processing:
+Kafka Streams state stores:
 
 - `unprocessed-t-store`
 - `unprocessed-s-store`
 - `t-dedupe-store`
 
-No `processedT`/`processedS` stores are introduced.
+## Allocation logic (exact flow)
 
-### Allocation sign behavior
+### Shared math
 
-- Incoming `T` allocates only against `S` with sign-compatible remaining supply.
-- Incoming `S` has a mandatory direction/sign constraint: `dir=D => q<0`, `dir=R => q>0`.
-- Incoming `S` allocates only against sign-compatible `T` with normal priority/lottery ordering.
+- `remainingT = T.q - T.q_a_total`
+- `remainingS = remainingCarry + remainingRegular`, where carry is consumed before regular quantity.
+- Sign compatibility check: both residuals are non-zero and have identical sign.
+- Allocation delta:
+  - `delta = sign(targetResidual) * min(abs(targetResidual), abs(sourceResidual))`
+  - if sign-incompatible => `delta = 0`
 
-### Allocation quantity fields
+### Incoming `T`
 
-- `T.q_a_total`: source-of-truth total allocated so far on `T`.
-- `T.q_a_delta_last`: last allocation delta applied to `T` (informational/stateful, not used as close/open truth).
-- `TS.q_a_delta`: per-event allocation delta represented by the `TS` event.
-- `TS.q_a_total_after`: resulting `T.q_a_total` after the `TS` delta is applied.
+1. Dedupe by key `pid|ref|cancel` with 14-day stream-time window.
+2. Emit `ACCEPTED_T` if not deduped.
+3. Load `S` candidates for the same `pid`.
+4. Split by sign compatibility against incoming `T` residual.
+5. Order only compatible `S` candidates by:
+   - `rollover=true` first
+   - then `id` ascending
+6. Iterate ordered compatible candidates:
+   - apply signed allocation
+   - update `T.q_a_total += delta`
+   - set `T.q_a_delta_last = delta`
+   - update candidate `S.q_a += delta`
+   - emit `TS(idPrefix-index, pid, tid, sid, accId, tDate, bDate, T.q, delta, T.q_a_total_after, tt)`
+7. Append sign-incompatible `S` unchanged.
+8. Persist every updated `S` with per-item upsert/delete mutation according to open/closed residual.
+9. Persist incoming `T` with upsert/delete mutation according to open/closed residual.
 
-Population rule for each allocation step with delta `D`:
+Special `sDate` rule for `T`: when `T` becomes fully allocated (`q_a_total == q`) during an allocation step, set `T.sDate` to candidate `S.bDate` when present (otherwise keep current `sDate`).
 
-- `previousTotal = T.q_a_total`
-- `newTotal = previousTotal + D`
-- update `T.q_a_total = newTotal`
-- update `T.q_a_delta_last = D`
-- emit `TS.q_a_delta = D`
-- emit `TS.q_a_total_after = newTotal`
+### Incoming `S`
 
-Signed quantities are preserved for these fields (`q_a_total`, `q_a_delta_last`, `q_a_delta`, `q_a_total_after`), including negative values.
+1. Emit `ACCEPTED_S`.
+2. Load `T` candidates for the same `pid`.
+3. Split by sign compatibility against incoming `S` residual.
+4. On compatible `T` only:
+   - canonical sort by `id`
+   - bucket into `a_status == FAIL` and others
+   - deterministic shuffle each bucket using seed hash of `(allocationLotterySeed, pid, incomingS.id, "INCOMING_S", bucketName)`
+   - process FAIL bucket first, then NORM bucket
+5. Iterate in that order:
+   - apply signed allocation
+   - update candidate `T.q_a_total += delta`
+   - set candidate `T.q_a_delta_last = delta`
+   - update incoming `S.q_a += delta`
+   - emit `TS(...)` with `q = T.q`, `q_a_delta = delta`, `q_a_total_after = updated T.q_a_total`
+6. Append sign-incompatible `T` unchanged.
+7. Persist every updated `T` with per-item upsert/delete mutation according to open/closed residual.
+8. Persist incoming `S` with upsert/delete mutation according to open/closed residual.
 
-### DB synchronization events
+Special `sDate` rule for `T`: same as incoming `T` flow (set when a `T` becomes fully allocated).
 
-For each accepted/generated mutation, the processor emits explicit `DbSyncEnvelope` records to `db-sync-events` with deterministic metadata:
+### Incoming `TS`
 
-- mutation type
+- Forward to processed stream.
+- Emit `GENERATED_TS` mutation.
+
+## DB synchronization events
+
+For each accepted/generated/store mutation, the processor emits `DbSyncEnvelope` records with:
+
+- `mutationType`
 - `pid`
-- payload (`T`, `S`, `TS`, or none for deletes)
+- one payload among `T` / `S` / `TS` (or none for delete)
 - source topic/partition/offset/timestamp
-- per-input ordinal
-- deterministic `eventId`
+- per-input `ordinal`
+- deterministic `eventId = topic-partition-offset-ordinal-mutationType`
 
-Current mappings:
+Mutation types used:
 
-- accepted `T` emits: `ACCEPTED_T`, `UPSERT_UNPROCESSED_T`, `GENERATED_TS`
-- accepted `S` emits: `ACCEPTED_S`, `UPSERT_UNPROCESSED_S`
-- forwarded `TS` emits: `GENERATED_TS`
+- `ACCEPTED_T`
+- `ACCEPTED_S`
+- `GENERATED_TS`
+- `UPSERT_UNPROCESSED_T`
+- `UPSERT_UNPROCESSED_S`
+- `DELETE_UNPROCESSED_T`
+- `DELETE_UNPROCESSED_S`
 
 ## SQL copy writer
 
-`DbSyncWriter` is a separate component that consumes `db-sync-events` and writes to SQL.
+`db-sync-app` consumes `db-sync-events` and writes to SQL.
 
 Key guarantees:
 
-- auto-commit is disabled
-- records are applied in partition order
-- row mutations + offset checkpoint are committed in the **same SQL transaction**
-- restart uses offsets from SQL table `kafka_consumer_offsets`
+- auto-commit disabled
+- records applied in partition order
+- row mutations + consumer offset checkpoint committed in one SQL transaction
+- restart resumes from SQL checkpoint table `kafka_consumer_offsets`
 
 ### Minimal SQL schema
-
-The writer creates/uses the following tables:
 
 - `accepted_t`
 - `accepted_s`

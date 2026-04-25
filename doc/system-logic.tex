@@ -10,7 +10,7 @@
 \usepackage{ragged2e}
 \newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
 
-\title{Formal Two-Store Transition System for \texorpdfstring{$T,S,TS$}{T,S,TS}}
+\title{Formal Transition System for \texorpdfstring{$T,S,TS$}{T,S,TS} (Implementation-Exact)}
 \author{Repository Documentation}
 \date{}
 
@@ -26,238 +26,180 @@
 
 \newtheorem{definition}{Definition}
 \newtheorem{proposition}{Proposition}
-\newtheorem{remark}{Remark}
 
 \begin{document}
 \begin{abstract}
-We present a complete mathematical specification of the repository logic as a deterministic state transition system over symbols $T$, $S$, and $TS$ with signed scalar $q$. The model defines admissible records, state stores, compatibility and allocation rules, deterministic ordering with seeded pseudo-random sub-ordering, duplicate suppression over a sliding window, and side-channel emission of mutation events with deterministic identifiers. The presentation is purely symbolic: $T$, $S$, $TS$, and $q$ are treated as abstract objects with no external interpretation.
+This document specifies the current implementation exactly for records $T$, $S$, $TS$, signed allocation, ordering, deduplication, and emitted mutation events.
 \end{abstract}
 
 \maketitle
 
-\section{Symbols and Domains}
-Fix a finite set of partition keys $P$.
-For each $p\in P$ we process records keyed by $p$.
+\section{Symbols and Exact Record Shapes}
+Fix partition keys $P$. All processing is per key $p\in P$.
 
-\begin{definition}[Core records]
-A $T$ record is
+\begin{definition}[Record $T$]
 \[
-T=(id,p,ref,\tau,cancel,q,q_a_total,q_a_delta_last,a,\theta_T),
+T=(id,p,ref,accId,tt,tDate,sDate,a\_status,cancel,q,q\_{a,total},q\_{a,\Delta,last},q_f).
 \]
-with $q\in\mathbb{Z}\setminus\{0\}$ and constraints
-\[
-\operatorname{sgn}(q_a_total)\in\{0,\operatorname{sgn}(q)\},\qquad |q_a_total|\le |q|.
-\]
-An $S$ record is
-\[
-S=(id,p,\beta,q,q_{carry},q_a,roll,\theta_S),
-\]
-with $q+q_{carry}\neq 0$ and constraints
-\[
-\big(\theta_S=D \Rightarrow q<0\big),\qquad \big(\theta_S=R \Rightarrow q>0\big),
-\]
-\[
-\operatorname{sgn}(q_a)\in\{0,\operatorname{sgn}(q+q_{carry})\},\qquad |q_a|\le |q+q_{carry}|.
-\]
-A $TS$ record is
-\[
-TS=(id,p,tid,sid,\tau,\beta,q,q_a_delta,q_a_total_after,\theta_{TS}),
-\]
-with
-\[
-\operatorname{sgn}(q_a_delta)=\operatorname{sgn}(q),\qquad |q_a_delta|\le |q|,\quad\operatorname{sgn}(q_a_total_after)\in\{0,\operatorname{sgn}(q)\},\quad |q_a_total_after|\le |q|.
-\]
-\end{definition}
-
-\begin{definition}[Residual operators]
-\[
-R_T(T):=q-q_a_total,
-\]
-and for $S$ define
-\[
-Q_S:=q+q_{carry},\qquad R_S(S):=Q_S-q_a.
-\]
-An item is \emph{open} iff its residual is nonzero.
-\end{definition}
-
-\section{Per-Key State}
-For each $p$ we keep two stores and one dedupe map:
+Constraints and defaults:
 \begin{itemize}[leftmargin=*]
-  \item $\mathcal{T}_p$: finite set/list of open $T$.
-  \item $\mathcal{S}_p$: finite set/list of open $S$.
-  \item $\mathcal{D}$: map from dedupe-key to first-seen timestamp for $T$-inputs.
+  \item $id,p,ref$ are non-empty text; $accId$ optional but non-blank if present.
+  \item $tt\in\{B,S,CS,SS\}$ with default $B$; $a\_status\in\{NORM,FAIL\}$ with default $NORM$.
+  \item $q\neq 0$ and sign gate by $tt$: $tt\in\{B,CS\}\Rightarrow q>0$, $tt\in\{S,SS\}\Rightarrow q<0$.
+  \item $\operatorname{sgn}(q\_{a,total})\in\{0,\operatorname{sgn}(q)\}$, $|q\_{a,total}|\le |q|$.
+  \item $\operatorname{sgn}(q\_{a,\Delta,last})\in\{0,\operatorname{sgn}(q)\}$, $|q\_{a,\Delta,last}|\le |q|$.
+  \item $a\_status=FAIL\Rightarrow q_f\neq 0$.
 \end{itemize}
-Global parameter: dedupe window $W=14$ days.
-
-\section{Compatibility and $q$-Sign-Based Allocation Rules}
-\begin{definition}[Sign compatibility]
-\[
-\mathrm{Compat}(x,y) \iff x\neq 0\land y\neq 0\land \operatorname{sgn}(x)=\operatorname{sgn}(y).
-\]
 \end{definition}
 
-\begin{definition}[$q$-sign gate for standard matching]
-For any candidate pair $(T_i,S_j)$, allocation is admissible only when
+\begin{definition}[Record $S$]
 \[
-\operatorname{sgn}(R_T(T_i))=\operatorname{sgn}(R_S(S_j)).
+S=(id,p,bDate,q,q_{carry},q_a,rollover,dir).
 \]
-Hence positive residuals allocate only with positive residuals, and negative residuals allocate only with negative residuals during standard matching.
+Constraints and defaults:
+\begin{itemize}[leftmargin=*]
+  \item $id,p$ are non-empty text.
+  \item $dir\in\{D,R\}$ with default from $q$ ($q<0\Rightarrow D$, $q>0\Rightarrow R$).
+  \item $q+q_{carry}\neq 0$.
+  \item If $q\neq 0$ and $q_{carry}\neq 0$ then $\operatorname{sgn}(q)=\operatorname{sgn}(q_{carry})$.
+  \item $dir=D\Rightarrow q<0$, $dir=R\Rightarrow q>0$.
+  \item $\operatorname{sgn}(q_a)\in\{0,\operatorname{sgn}(q+q_{carry})\}$ and $|q_a|\le |q+q_{carry}|$.
+\end{itemize}
 \end{definition}
 
-\begin{definition}[Signed allocation]
+\begin{definition}[Record $TS$]
 \[
-\mathrm{Alloc}(x,y)=
+TS=(id,p,tid,sid,accId,tDate,sDate,q,q_{a,\Delta},q_{a,total,after},tt).
+\]
+Constraints and defaults:
+\begin{itemize}[leftmargin=*]
+  \item $id,p,tid,sid$ are non-empty text; $accId$ optional but non-blank if present.
+  \item $tt$ defaults to $B$ when null.
+  \item $q\neq 0$.
+  \item $\operatorname{sgn}(q_{a,\Delta})=\operatorname{sgn}(q)$ and $|q_{a,\Delta}|\le |q|$.
+  \item $\operatorname{sgn}(q_{a,total,after})\in\{0,\operatorname{sgn}(q)\}$ and $|q_{a,total,after}|\le |q|$.
+\end{itemize}
+\end{definition}
+
+\section{Residuals and Sign-Compatible Allocation}
+\[
+R_T(T)=q-q_{a,total}.
+\]
+For $S$, define signed supply usage with carry-first consumption:
+\[
+R_S(S)=R_{carry}(S)+R_{regular}(S),
+\]
+where usage magnitude $|q_a|$ consumes $|q_{carry}|$ first, then $|q|$.
+
+Sign compatibility:
+\[
+Compat(x,y)\iff x\neq 0\land y\neq 0\land \operatorname{sgn}(x)=\operatorname{sgn}(y).
+\]
+Allocation primitive:
+\[
+Alloc(x,y)=
 \begin{cases}
-\operatorname{sgn}(x)\cdot\min(|x|,|y|), & \mathrm{Compat}(x,y),\\
+\operatorname{sgn}(x)\cdot \min(|x|,|y|), & Compat(x,y),\\
 0, & \text{otherwise}.
 \end{cases}
 \]
-\end{definition}
 
-\begin{remark}[Operational update rule]
-If $\delta=\mathrm{Alloc}(R_T,R_S)\neq 0$, then both allocators move by the same signed amount:
-\[
-q_{a,total}^{(T)} \gets q_{a,total}^{(T)} + \delta,\quad q_{a,\Delta,last}^{(T)} \gets \delta,\quad q_a^{(S)} \gets q_a^{(S)} + \delta,
-\]
-and emitted link value satisfies
-\[
-q_{a,\Delta}^{(TS)}=\delta,\qquad q_{a,total,after}^{(TS)}=q_{a,total}^{(T)},\qquad \operatorname{sgn}(q_{a,\Delta}^{(TS)})=\operatorname{sgn}(R_T)=\operatorname{sgn}(R_S).
-\]
-If compatibility fails, $\delta=0$ and no $TS$ is emitted.
-\end{remark}
+For any nonzero $\delta=Alloc(x,y)$, both sides are updated by $+\delta$ in their allocated counters.
 
-\begin{proposition}[Monotone residual contraction]
-If $\delta=\mathrm{Alloc}(x,y)$ then updating
-\[
-x' = x-\delta,\qquad y'=y-\delta
-\]
-preserves sign direction and never increases residual magnitude:
-\[
-|x'|\le |x|,\qquad |y'|\le |y|.
-\]
-\end{proposition}
+\section{Per-Key State}
+For each $p$:
+\begin{itemize}[leftmargin=*]
+  \item $\mathcal{T}_p$: open $T$ collection.
+  \item $\mathcal{S}_p$: open $S$ collection.
+  \item $\mathcal{D}$: dedupe map for incoming $T$ keys $(p,ref,cancel)\mapsto firstSeenTs$.
+\end{itemize}
+Dedupe window is $W=14$ days (milliseconds in implementation).
 
-\begin{proposition}[No cross-sign allocation in standard matching]
-If $\operatorname{sgn}(x)\neq \operatorname{sgn}(y)$ or either value is $0$, then $\mathrm{Alloc}(x,y)=0$.
-\end{proposition}
+\section{Transition Steps}
+Each input kind is in $\{T,S,TS\}$. Transition is deterministic given source metadata and state.
 
-\section{Input Kinds and Transition Function}
-Each input envelope has kind in $\{T,S,TS\}$.
-For key $p$, one-step transition is
-\[
-\Sigma_p^{k+1} = F(\Sigma_p^k, e_k),
-\]
-with side outputs to two channels: a processed stream and a mutation stream.
-
-\subsection{$T$-kind step}
-Given incoming $T_{in}$:
+\subsection{Incoming $T$}
 \begin{enumerate}[leftmargin=*]
-  \item Build dedupe key $d=(p,ref,cancel)$. If $d\in\mathcal{D}$ and age $\le W$, ignore.
-  \item Otherwise insert/update $\mathcal{D}[d]$ and emit mutation \texttt{ACCEPTED\_T}.
-  \item Select compatible candidates from $\mathcal{S}_p$ by $\mathrm{Compat}(R_T(T_{in}),R_S(S_j))$.
-  \item Order candidates by $(\neg roll, id)$ so $roll=true$ precedes $roll=false$.
-  \item For each ordered $S_j$, compute $\delta_j=\mathrm{Alloc}(R_T,R_S)$, update $q_a$ for $S$ and $q_{a,total}$/$q_{a,\Delta,last}$ for $T$, and emit one $TS_j$ when $\delta_j\neq 0$.
-  \item For every emitted $TS_j$: forward to processed stream and emit mutation \texttt{GENERATED\_TS}.
-  \item Rewrite $\mathcal{S}_p$ with updated open items (emit upsert/delete mutations item-wise).
-  \item If updated $T_{in}$ is open, upsert into $\mathcal{T}_p$ (emit \texttt{UPSERT\_UNPROCESSED\_T}); else remove by $id$ (emit \texttt{DELETE\_UNPROCESSED\_T}).
+  \item Build dedupe key $(p,ref,cancel)$; if seen within $W$, ignore input.
+  \item Else emit mutation \texttt{ACCEPTED\_T}.
+  \item Load all $S\in\mathcal{S}_p$.
+  \item Split by sign compatibility with current $R_T(T_{in})$.
+  \item Order compatible $S$ by $(\neg rollover,id)$ (thus $rollover=true$ first).
+  \item Iterate ordered compatible $S_j$:
+  \[
+  \delta_j=Alloc(R_T(T),R_S(S_j)).
+  \]
+  If $\delta_j\neq 0$, update
+  \[
+  q_{a,total}^{(T)}\gets q_{a,total}^{(T)}+\delta_j,\quad
+  q_{a,\Delta,last}^{(T)}\gets \delta_j,\quad
+  q_a^{(S_j)}\gets q_a^{(S_j)}+\delta_j,
+  \]
+  and emit
+  \[
+  TS=(idPrefix\text{-}k,p,tid,sid,accId,tDate,bDate,q,\delta_j,q_{a,total}^{(T)},tt).
+  \]
+  \item Append incompatible $S$ unchanged.
+  \item Persist each updated $S$ as upsert/delete by open/closed residual.
+  \item Persist incoming $T$ as upsert/delete by open/closed residual.
 \end{enumerate}
+Additionally, when a $T$ becomes fully allocated ($q_{a,total}=q$), set $sDate$ to allocation-side $bDate$ when that date is non-null; otherwise keep prior $sDate$.
 
-\subsection{$S$-kind step}
-Given incoming $S_{in}$:
+\subsection{Incoming $S$}
 \begin{enumerate}[leftmargin=*]
   \item Emit mutation \texttt{ACCEPTED\_S}.
-  \item Enforce direction/sign invariant for incoming $S_{in}$: $\theta_S=D \Rightarrow q<0$ and $\theta_S=R \Rightarrow q>0$.
-  \item On $T$ candidates, select compatible candidates by $\mathrm{Compat}(R_S(S_{in}),R_T(T_i))$.
-  \item Partition these candidates into $a=\texttt{FAIL}$ and $a\neq\texttt{FAIL}$ buckets.
-  \item Canonically sort by $id$ in each bucket, then apply deterministic shuffle with seed
+  \item Load all $T\in\mathcal{T}_p$.
+  \item Split by sign compatibility with current $R_S(S_{in})$.
+  \item For compatible $T$: canonical sort by $id$, then bucket by $a\_status$ into $FAIL$ and $NORM$.
+  \item Deterministically shuffle each bucket with seed
   \[
-  h(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName).
+  hash(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName),
   \]
-  \item Iterate candidates in order; apply signed allocation update and emit $TS$ for nonzero $\delta$.
-  \item The iteration is exhaustive over all compatible $T$ candidates in that deterministic order; it stops early only if $R_S(S_{in})=0$.
-  \item Forward emitted $TS$ and mutation \texttt{GENERATED\_TS}.
-  \item Rewrite $\mathcal{T}_p$ with item-wise upsert/delete mutations.
-  \item Keep/remove incoming $S_{in}$ in $\mathcal{S}_p$ with final upsert/delete mutation.
+  then process $FAIL$ bucket first, $NORM$ second.
+  \item For each selected $T_i$, apply signed update and emit $TS$ when $\delta\neq 0$.
+  \item Append incompatible $T$ unchanged.
+  \item Persist each updated $T$ as upsert/delete by open/closed residual.
+  \item Persist incoming $S$ as upsert/delete by open/closed residual.
 \end{enumerate}
 
-\subsection{$TS$-kind step}
-Forward input $TS$ to processed stream and emit mutation \texttt{GENERATED\_TS}.
+\subsection{Incoming $TS$}
+Forward to processed output and emit mutation \texttt{GENERATED\_TS}.
 
-\section{Output Mutation Event Algebra}
-Each mutation output carries
+\section{Mutation Events}
+Each emitted mutation record carries:
 \[
 (type,p,T?,S?,TS?,topic,partition,offset,timestamp,ordinal,eventId).
 \]
-Deterministic id rule:
+Event id is deterministic:
 \[
-eventId = topic\|partition\|offset\|ordinal\|type.
+eventId = topic\text{-}partition\text{-}offset\text{-}ordinal\text{-}type.
 \]
-Thus replay on identical source metadata yields identical identifiers.
-
-\section{Store Rewrite Semantics}
-For a rewritten collection (either $\mathcal{T}_p$ or $\mathcal{S}_p$):
+Mutation type set:
 \begin{itemize}[leftmargin=*]
-  \item Items with nonzero residual are retained as the unique latest version by $id$.
-  \item Items with zero residual are excluded from store image.
-  \item For each item transition open/closed, a matching upsert/delete mutation is emitted.
+  \item \texttt{ACCEPTED\_T}
+  \item \texttt{ACCEPTED\_S}
+  \item \texttt{GENERATED\_TS}
+  \item \texttt{UPSERT\_UNPROCESSED\_T}
+  \item \texttt{UPSERT\_UNPROCESSED\_S}
+  \item \texttt{DELETE\_UNPROCESSED\_T}
+  \item \texttt{DELETE\_UNPROCESSED\_S}
 \end{itemize}
 
 \section{Dedupe Eviction}
-At punctuation times (stream-time clock), remove all dedupe entries older than cutoff
+On stream-time punctuation, delete dedupe entries older than
 \[
-cutoff = streamTime - W.
+cutoff=streamTime-W.
 \]
-This bounds dedupe memory and preserves window semantics.
 
-\section{Determinism and Invariants}
-\begin{proposition}[Per-key closure]
-All generated $TS$ and rewritten records preserve partition key $p$.
+\section{Invariants}
+\begin{proposition}[Per-key consistency]
+All rewritten and emitted entities keep the same partition key $p$.
 \end{proposition}
 
-\begin{proposition}[Bounded allocation]
-For every update, signed allocated value respects source bounds; no over-allocation occurs:
+\begin{proposition}[Bounded signed allocation]
 \[
-|q_a_total|\le |q| \text{ for } T,\quad |q_a_delta|,|q_a_total_after|\le |q| \text{ for } TS,
-\qquad |q_a|\le |q+q_{carry}| \text{ for } S.
+|q_{a,total}|\le |q|\ (T),\quad |q_a|\le |q+q_{carry}|\ (S),\quad |q_{a,\Delta}|,|q_{a,total,after}|\le |q|\ (TS).
 \]
 \end{proposition}
-
-\begin{proposition}[Bucket priority]
-In $S$-kind processing, all $a=\texttt{FAIL}$ candidates are processed before $a\neq\texttt{FAIL}$ candidates. In $T$-kind processing, all $roll=true$ candidates are processed before $roll=false$ candidates.
-\end{proposition}
-
-\begin{table}[t]
-\centering
-\caption{Mutation type set}
-\begin{tabularx}{\columnwidth}{lY}
-\toprule
-Type & Role \\
-\midrule
-\texttt{ACCEPTED\_T} & accepted input of kind $T$ \\
-\texttt{ACCEPTED\_S} & accepted input of kind $S$ \\
-\texttt{GENERATED\_TS} & emitted or forwarded $TS$ \\
-\texttt{UPSERT\_UNPROCESSED\_T} & open $T$ image update \\
-\texttt{UPSERT\_UNPROCESSED\_S} & open $S$ image update \\
-\texttt{DELETE\_UNPROCESSED\_T} & closed $T$ removal \\
-\texttt{DELETE\_UNPROCESSED\_S} & closed $S$ removal \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\begin{algorithm}[t]
-\caption{Generic signed-pair update}
-\begin{algorithmic}[1]
-\Require two open values with residuals $x,y$
-\State $\delta \gets \mathrm{Alloc}(x,y)$
-\If{$\delta \neq 0$}
-  \State update left allocation accumulator by $+\delta$
-  \State update right allocation accumulator by $+\delta$
-  \State emit link object with scalars $q_a_delta=\delta$ and $q_a_total_after=q_a_total^{(T)}$
-\EndIf
-\end{algorithmic}
-\end{algorithm}
-
-\section{Conclusion}
-The implementation can be treated as a symbolic transition system with state $(\mathcal{T}_p,\mathcal{S}_p,\mathcal{D})$, deterministic ordering, bounded signed updates, and deterministic mutation-side observability. The formulation is intentionally abstract and uses only $T,S,TS,q$ primitives.
 
 \end{document}
