@@ -67,5 +67,4 @@ public final class NaiveAlocationStrategy implements AllocationStrategy {
     private long deriveAllocationSeed(String pid, String incomingId, String direction, String bucketName) {
         return Objects.hash(allocationLotterySeed, pid, incomingId, direction, bucketName);
     }
-
 }

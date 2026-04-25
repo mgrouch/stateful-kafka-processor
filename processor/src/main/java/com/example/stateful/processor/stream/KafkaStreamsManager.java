@@ -32,10 +32,6 @@ public final class KafkaStreamsManager implements SmartLifecycle {
     private final KafkaStreams kafkaStreams;
     private volatile boolean running;
 
-    public KafkaStreamsManager(ProcessorSettings settings, SerdeFactory serdeFactory) {
-        this(settings, serdeFactory, new NaiveAlocationStrategy(settings.allocationLotterySeed()));
-    }
-
     public KafkaStreamsManager(ProcessorSettings settings, SerdeFactory serdeFactory, AllocationStrategy allocationStrategy) {
         this.settings = settings;
         this.topology = TopologyFactory.create(settings, serdeFactory, allocationStrategy);

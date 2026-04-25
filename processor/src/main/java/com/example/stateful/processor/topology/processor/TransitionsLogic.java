@@ -15,11 +15,7 @@ final class TransitionsLogic {
 
     private final AllocationStrategy allocationStrategy;
 
-    TransitionsLogic(long allocationLotterySeed) {
-        this(allocationLotterySeed, new NaiveAlocationStrategy(allocationLotterySeed));
-    }
-
-    TransitionsLogic(long allocationLotterySeed, AllocationStrategy allocationStrategy) {
+    TransitionsLogic(AllocationStrategy allocationStrategy) {
         this.allocationStrategy = Objects.requireNonNull(allocationStrategy, "allocationStrategy must not be null");
     }
 
