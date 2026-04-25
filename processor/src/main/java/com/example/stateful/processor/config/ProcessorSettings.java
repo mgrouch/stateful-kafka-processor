@@ -30,6 +30,11 @@ public record ProcessorSettings(
         long allocationLotterySeed
 ) {
 
+    public static final String REPLICATION_FACTOR_PROPERTY = "app.streams.replication-factor";
+    public static final String NUM_STANDBY_REPLICAS_PROPERTY = "app.streams.num-standby-replicas";
+    public static final int DEFAULT_REPLICATION_FACTOR = 3;
+    public static final int DEFAULT_NUM_STANDBY_REPLICAS = 1;
+
     public ProcessorSettings {
         requireText(bootstrapServers, "bootstrapServers");
         requireText(securityProtocol, "securityProtocol");
@@ -64,8 +69,8 @@ public record ProcessorSettings(
                 environment.getRequiredProperty("app.db-sync-topic"),
                 Path.of(environment.getRequiredProperty("app.state-dir")),
                 Long.parseLong(environment.getRequiredProperty("app.commit-interval-ms")),
-                Integer.parseInt(environment.getProperty("app.streams.replication-factor", "3")),
-                Integer.parseInt(environment.getProperty("app.streams.num-standby-replicas", "1")),
+                Integer.parseInt(environment.getProperty(REPLICATION_FACTOR_PROPERTY, String.valueOf(DEFAULT_REPLICATION_FACTOR))),
+                Integer.parseInt(environment.getProperty(NUM_STANDBY_REPLICAS_PROPERTY, String.valueOf(DEFAULT_NUM_STANDBY_REPLICAS))),
                 Long.parseLong(environment.getProperty("allocation.lottery.seed", "1357911"))
         );
     }

@@ -30,8 +30,8 @@ public final class ProcessorApplication {
                 "app.db-sync-topic", "db-sync-events",
                 "app.state-dir", "processor/kafka-streams-state",
                 "app.commit-interval-ms", "100",
-                "app.streams.replication-factor", "3",
-                "app.streams.num-standby-replicas", "1",
+                ProcessorSettings.REPLICATION_FACTOR_PROPERTY, String.valueOf(ProcessorSettings.DEFAULT_REPLICATION_FACTOR),
+                ProcessorSettings.NUM_STANDBY_REPLICAS_PROPERTY, String.valueOf(ProcessorSettings.DEFAULT_NUM_STANDBY_REPLICAS),
                 "spring.kafka.bootstrap-servers", "localhost:9093",
                 "app.kafka.security-protocol", "SSL"
         ));
