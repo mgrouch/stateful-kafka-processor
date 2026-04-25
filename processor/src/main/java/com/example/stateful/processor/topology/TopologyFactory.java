@@ -6,6 +6,7 @@ import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.topology.processor.AllocationStrategy;
+import com.example.stateful.processor.topology.processor.NaiveAlocationStrategy;
 import com.example.stateful.processor.topology.processor.StatefulEnvelopeProcessor;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
@@ -29,7 +30,7 @@ public final class TopologyFactory {
     }
 
     public static Topology create(ProcessorSettings settings, SerdeFactory serdeFactory) {
-        return create(settings, serdeFactory, new AllocationStrategy());
+        return create(settings, serdeFactory, new NaiveAlocationStrategy(settings.allocationLotterySeed()));
     }
 
     public static Topology create(ProcessorSettings settings, SerdeFactory serdeFactory, AllocationStrategy allocationStrategy) {

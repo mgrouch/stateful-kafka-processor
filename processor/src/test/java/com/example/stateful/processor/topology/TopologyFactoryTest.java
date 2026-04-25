@@ -12,6 +12,7 @@ import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.state.TBucket;
 import com.example.stateful.processor.topology.processor.AllocationStrategy;
+import com.example.stateful.processor.topology.processor.NaiveAlocationStrategy;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.serialization.Serdes;
@@ -438,7 +439,7 @@ class TopologyFactoryTest {
         }
 
         private TopologyTestDriver driver(Instant t0) {
-            return driver(t0, new AllocationStrategy());
+            return driver(t0, new NaiveAlocationStrategy(settings.allocationLotterySeed()));
         }
 
         private TopologyTestDriver driver(Instant t0, AllocationStrategy allocationStrategy) {
