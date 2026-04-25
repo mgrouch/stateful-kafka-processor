@@ -4,6 +4,7 @@ import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
+import com.example.stateful.domain.TT;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -16,8 +17,16 @@ import java.util.Random;
 public final class AutoAllocOppositeStrategy implements AllocationStrategy {
 
     private static final String LOTTERY_INCOMING_S = "INCOMING_S";
-    private static final String LOTTERY_FAIL_BUCKET = "FAIL";
-    private static final String LOTTERY_NORM_BUCKET = "NORM";
+    private static final String LOTTERY_PARTIAL_FAIL_S_BUCKET = "PARTIAL_FAIL_S";
+    private static final String LOTTERY_PARTIAL_FAIL_B_BUCKET = "PARTIAL_FAIL_B";
+    private static final String LOTTERY_PARTIAL_FAIL_SS_BUCKET = "PARTIAL_FAIL_SS";
+    private static final String LOTTERY_PARTIAL_FAIL_CS_BUCKET = "PARTIAL_FAIL_CS";
+    private static final String LOTTERY_FULL_FAIL_S_BUCKET = "FULL_FAIL_S";
+    private static final String LOTTERY_FULL_FAIL_NON_S_BUCKET = "FULL_FAIL_NON_S";
+    private static final String LOTTERY_PARTIAL_ALLOC_S_BUCKET = "PARTIAL_ALLOC_S";
+    private static final String LOTTERY_PARTIAL_ALLOC_NON_S_BUCKET = "PARTIAL_ALLOC_NON_S";
+    private static final String LOTTERY_OPEN_S_BUCKET = "OPEN_S";
+    private static final String LOTTERY_OPEN_OTHER_BUCKET = "OPEN_OTHER";
 
     private final long allocationLotterySeed;
 
@@ -46,12 +55,50 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
     @Override
     public List<T> orderTCandidatesForIncomingS(List<T> candidates, S incomingS) {
         List<T> canonical = candidates.stream().sorted(Comparator.comparing(T::id)).toList();
-        List<T> fail = canonical.stream().filter(t -> t.a_status() == AStatus.FAIL).toList();
-        List<T> normal = canonical.stream().filter(t -> t.a_status() != AStatus.FAIL).toList();
 
         List<T> ordered = new ArrayList<>(candidates.size());
-        ordered.addAll(shuffleDeterministically(fail, incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_FAIL_BUCKET));
-        ordered.addAll(shuffleDeterministically(normal, incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_NORM_BUCKET));
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isPartiallyFailedS)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_S_BUCKET));
+
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isPartiallyFailedB)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_B_BUCKET));
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isPartiallyFailedSS)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_SS_BUCKET));
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isPartiallyFailedCS)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_CS_BUCKET));
+
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isFullyFailedS)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_FULL_FAIL_S_BUCKET));
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isFullyFailedNonS)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_FULL_FAIL_NON_S_BUCKET));
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isPartiallyAllocatedS)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_ALLOC_S_BUCKET));
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isPartiallyAllocatedNonS)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_ALLOC_NON_S_BUCKET));
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isOtherOpenS)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_OPEN_S_BUCKET));
+        ordered.addAll(shuffleDeterministically(canonical.stream()
+                        .filter(this::isOtherOpenTrade)
+                        .toList(),
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_OPEN_OTHER_BUCKET));
         return ordered;
     }
 
@@ -166,6 +213,54 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
 
     private static boolean hasOppositeSign(long lhs, long rhs) {
         return lhs != 0L && rhs != 0L && Long.signum(lhs) != Long.signum(rhs);
+    }
+
+    private boolean isPartiallyFailedS(T candidate) {
+        return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() == TT.S;
+    }
+
+    private boolean isPartiallyFailedB(T candidate) {
+        return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() == TT.B;
+    }
+
+    private boolean isPartiallyFailedSS(T candidate) {
+        return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() == TT.SS;
+    }
+
+    private boolean isPartiallyFailedCS(T candidate) {
+        return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() == TT.CS;
+    }
+
+    private boolean isFullyFailedS(T candidate) {
+        return candidate.q_a_total() == 0L && candidate.q_f() != 0L && candidate.tt() == TT.S;
+    }
+
+    private boolean isFullyFailedNonS(T candidate) {
+        return candidate.q_a_total() == 0L && candidate.q_f() != 0L && candidate.tt() != TT.S;
+    }
+
+    private boolean isPartiallyAllocatedS(T candidate) {
+        return candidate.q_a_total() != 0L && candidate.q_f() == 0L && candidate.tt() == TT.S;
+    }
+
+    private boolean isPartiallyAllocatedNonS(T candidate) {
+        return candidate.q_a_total() != 0L && candidate.q_f() == 0L && candidate.tt() != TT.S;
+    }
+
+    private boolean isOtherOpenS(T candidate) {
+        return candidate.q_a_total() == 0L && candidate.q_f() == 0L && candidate.tt() == TT.S;
+    }
+
+    private boolean isOtherOpenTrade(T candidate) {
+        return !isPartiallyFailedS(candidate)
+                && !isPartiallyFailedB(candidate)
+                && !isPartiallyFailedSS(candidate)
+                && !isPartiallyFailedCS(candidate)
+                && !isFullyFailedS(candidate)
+                && !isFullyFailedNonS(candidate)
+                && !isPartiallyAllocatedS(candidate)
+                && !isPartiallyAllocatedNonS(candidate)
+                && !isOtherOpenS(candidate);
     }
 
     private List<T> shuffleDeterministically(List<T> bucket, String pid, String incomingId, String direction, String bucketName) {
