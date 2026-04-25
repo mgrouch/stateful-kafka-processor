@@ -41,11 +41,11 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     private KeyValueStore<String, Long> tDedupeStore;
 
     public StatefulEnvelopeProcessor() {
-        this(1357911L, new AllocationStrategy());
+        this(1357911L, new NaiveAlocationStrategy());
     }
 
     public StatefulEnvelopeProcessor(long allocationLotterySeed) {
-        this(allocationLotterySeed, new AllocationStrategy());
+        this(allocationLotterySeed, new NaiveAlocationStrategy(allocationLotterySeed));
     }
 
     public StatefulEnvelopeProcessor(long allocationLotterySeed, AllocationStrategy allocationStrategy) {

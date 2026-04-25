@@ -6,6 +6,7 @@ import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.state.TBucket;
 import com.example.stateful.processor.topology.processor.AllocationStrategy;
+import com.example.stateful.processor.topology.processor.NaiveAlocationStrategy;
 import com.example.stateful.processor.topology.TopologyFactory;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StoreQueryParameters;
@@ -32,7 +33,7 @@ public final class KafkaStreamsManager implements SmartLifecycle {
     private volatile boolean running;
 
     public KafkaStreamsManager(ProcessorSettings settings, SerdeFactory serdeFactory) {
-        this(settings, serdeFactory, new AllocationStrategy());
+        this(settings, serdeFactory, new NaiveAlocationStrategy(settings.allocationLotterySeed()));
     }
 
     public KafkaStreamsManager(ProcessorSettings settings, SerdeFactory serdeFactory, AllocationStrategy allocationStrategy) {

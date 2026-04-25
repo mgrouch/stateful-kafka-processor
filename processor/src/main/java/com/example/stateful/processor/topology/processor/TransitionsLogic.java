@@ -1,51 +1,40 @@
 package com.example.stateful.processor.topology.processor;
 
-import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.Set;
 
 final class TransitionsLogic {
 
-    private static final String LOTTERY_INCOMING_S = "INCOMING_S";
-    private static final String LOTTERY_FAIL_BUCKET = "FAIL";
-    private static final String LOTTERY_NORM_BUCKET = "NORM";
-
-    private final long allocationLotterySeed;
     private final AllocationStrategy allocationStrategy;
 
     TransitionsLogic(long allocationLotterySeed) {
-        this(allocationLotterySeed, new AllocationStrategy());
+        this(allocationLotterySeed, new NaiveAlocationStrategy(allocationLotterySeed));
     }
 
     TransitionsLogic(long allocationLotterySeed, AllocationStrategy allocationStrategy) {
-        this.allocationLotterySeed = allocationLotterySeed;
         this.allocationStrategy = Objects.requireNonNull(allocationStrategy, "allocationStrategy must not be null");
     }
 
     AllocationResult allocateForIncomingT(T incomingT, List<S> candidates, String idPrefix) {
         requireSamePid(candidates.stream().map(S::pid).toList(), incomingT.pid(), "S candidate");
         long incomingTOpen = remainingT(incomingT);
-        List<S> signCompatibleCandidates = candidates.stream()
-                .filter(candidate -> areSignCompatible(incomingTOpen, remainingS(candidate)))
+        List<S> allocatableCandidates = candidates.stream()
+                .filter(candidate -> allocationStrategy.areSignCompatible(incomingTOpen, remainingS(candidate)))
                 .toList();
         List<S> untouchedCandidates = candidates.stream()
-                .filter(candidate -> !areSignCompatible(incomingTOpen, remainingS(candidate)))
+                .filter(candidate -> !allocationStrategy.areSignCompatible(incomingTOpen, remainingS(candidate)))
                 .toList();
-        List<S> orderedCandidates = orderSCandidates(signCompatibleCandidates);
-        ensureRolloverPriority(orderedCandidates);
+        List<S> orderedCandidates = allocationStrategy.orderSCandidatesForIncomingT(allocatableCandidates, incomingT);
 
         List<S> updatedS = new ArrayList<>();
         List<TS> emitted = new ArrayList<>();
@@ -69,7 +58,6 @@ final class TransitionsLogic {
             }
         }
         updatedS.addAll(untouchedCandidates);
-
         validateAllocationOutput(updatedT.pid(), List.of(updatedT), updatedS, emitted);
         return new AllocationResult(updatedT, updatedS, emitted);
     }
@@ -83,14 +71,13 @@ final class TransitionsLogic {
         int tsIndex = 0;
 
         long incomingSOpen = remainingS(updatedS);
-        List<T> signCompatibleCandidates = candidates.stream()
-                .filter(candidate -> areSignCompatible(incomingSOpen, remainingT(candidate)))
+        List<T> allocatableCandidates = candidates.stream()
+                .filter(candidate -> allocationStrategy.areSignCompatible(incomingSOpen, remainingT(candidate)))
                 .toList();
         List<T> untouchedCandidates = candidates.stream()
-                .filter(candidate -> !areSignCompatible(incomingSOpen, remainingT(candidate)))
+                .filter(candidate -> !allocationStrategy.areSignCompatible(incomingSOpen, remainingT(candidate)))
                 .toList();
-        List<T> orderedCandidates = orderTCandidates(signCompatibleCandidates, incomingS.pid(), incomingS.id());
-        ensureFailPriority(orderedCandidates);
+        List<T> orderedCandidates = allocationStrategy.orderTCandidatesForIncomingS(allocatableCandidates, incomingS);
 
         for (T candidate : orderedCandidates) {
             long sRemaining = remainingS(updatedS);
@@ -109,7 +96,6 @@ final class TransitionsLogic {
             }
         }
         updatedT.addAll(untouchedCandidates);
-
         validateAllocationOutput(updatedS.pid(), updatedT, List.of(updatedS), emitted);
         return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
     }
@@ -120,62 +106,6 @@ final class TransitionsLogic {
 
     boolean isOpen(S s) {
         return remainingS(s) != 0;
-    }
-
-    private List<S> orderSCandidates(List<S> candidates) {
-        return candidates.stream()
-                .sorted(Comparator
-                        .comparing((S s) -> !s.rollover())
-                        .thenComparing(S::id))
-                .toList();
-    }
-
-    private List<T> orderTCandidates(List<T> candidates, String pid, String incomingId) {
-        List<T> canonical = candidates.stream().sorted(Comparator.comparing(T::id)).toList();
-        List<T> fail = canonical.stream().filter(t -> t.a_status() == AStatus.FAIL).toList();
-        List<T> normal = canonical.stream().filter(t -> t.a_status() != AStatus.FAIL).toList();
-
-        List<T> ordered = new ArrayList<>(candidates.size());
-        ordered.addAll(shuffleDeterministically(fail, pid, incomingId, LOTTERY_INCOMING_S, LOTTERY_FAIL_BUCKET));
-        ordered.addAll(shuffleDeterministically(normal, pid, incomingId, LOTTERY_INCOMING_S, LOTTERY_NORM_BUCKET));
-        return ordered;
-    }
-
-    private List<T> shuffleDeterministically(List<T> bucket, String pid, String incomingId, String direction, String bucketName) {
-        List<T> shuffled = new ArrayList<>(bucket);
-        long seed = deriveAllocationSeed(pid, incomingId, direction, bucketName);
-        Collections.shuffle(shuffled, new Random(seed));
-        return shuffled;
-    }
-
-    private long deriveAllocationSeed(String pid, String incomingId, String direction, String bucketName) {
-        return Objects.hash(allocationLotterySeed, pid, incomingId, direction, bucketName);
-    }
-
-    private static void ensureFailPriority(List<T> orderedCandidates) {
-        boolean seenNormal = false;
-        for (T candidate : orderedCandidates) {
-            if (candidate.a_status() == AStatus.FAIL) {
-                if (seenNormal) {
-                    throw new IllegalStateException("FAIL T must be ordered before NORM T");
-                }
-            } else {
-                seenNormal = true;
-            }
-        }
-    }
-
-    private static void ensureRolloverPriority(List<S> orderedCandidates) {
-        boolean seenNonRollover = false;
-        for (S candidate : orderedCandidates) {
-            if (candidate.rollover()) {
-                if (seenNonRollover) {
-                    throw new IllegalStateException("rollover S must be ordered before non-rollover S");
-                }
-            } else {
-                seenNonRollover = true;
-            }
-        }
     }
 
     private void validateAllocationOutput(String pid, List<T> allowedT, List<S> allowedS, List<TS> emittedTs) {
@@ -251,10 +181,6 @@ final class TransitionsLogic {
 
     private static LocalDate nextSDate(LocalDate currentSDate, LocalDate allocationSDate) {
         return allocationSDate != null ? allocationSDate : currentSDate;
-    }
-
-    private static boolean areSignCompatible(long lhs, long rhs) {
-        return lhs != 0 && rhs != 0 && Long.signum(lhs) == Long.signum(rhs);
     }
 
     private static boolean isAllocatedWithinTotal(long total, long allocated) {

@@ -1,16 +1,23 @@
 package com.example.stateful.processor.topology.processor;
 
-public class AllocationStrategy {
+import com.example.stateful.domain.S;
+import com.example.stateful.domain.T;
 
-    public long allocate(long targetOpen, long sourceOpen) {
-        if (!areSignCompatible(targetOpen, sourceOpen)) {
-            return 0L;
-        }
-        long magnitude = Math.min(Math.abs(targetOpen), Math.abs(sourceOpen));
-        return Long.signum(targetOpen) * magnitude;
+import java.util.List;
+
+public interface AllocationStrategy {
+
+    long allocate(long targetOpen, long sourceOpen);
+
+    default boolean areSignCompatible(long lhs, long rhs) {
+        return lhs != 0 && rhs != 0 && Long.signum(lhs) == Long.signum(rhs);
     }
 
-    private static boolean areSignCompatible(long lhs, long rhs) {
-        return lhs != 0 && rhs != 0 && Long.signum(lhs) == Long.signum(rhs);
+    default List<S> orderSCandidatesForIncomingT(List<S> candidates, T incomingT) {
+        return candidates;
+    }
+
+    default List<T> orderTCandidatesForIncomingS(List<T> candidates, S incomingS) {
+        return candidates;
     }
 }
