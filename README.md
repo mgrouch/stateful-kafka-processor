@@ -78,6 +78,8 @@ Kafka Streams state stores:
 
 ## Allocation logic (exact flow)
 
+Default runtime strategy is `AutoAllocOppositeStrategy` (the naive strategy remains available only for explicit wiring/tests).
+
 ### Shared math
 
 - `remainingT = T.q - T.q_a_total`
@@ -112,21 +114,26 @@ Special `sDate` rule for `T`: when `T` becomes fully allocated (`q_a_total == q`
 
 1. Emit `ACCEPTED_S`.
 2. Load `T` candidates for the same `pid`.
-3. Split by sign compatibility against incoming `S` residual.
-4. On compatible `T` only:
+3. Auto-allocate opposite-sign `T` first (for both previously ordered and untouched candidates):
+   - for each opposite-sign `T`, force-close by setting `q_a_total = q`
+   - set `q_a_delta_last = q - old(q_a_total)`
+   - accumulate incoming `S.q_a_opposite_delta` and `S.q_a_opposite_total`
+   - emit `TS(...)` for every non-zero opposite delta
+4. Split remaining `T` by sign compatibility against the updated incoming `S` residual.
+5. On compatible remaining `T` only:
    - canonical sort by `id`
    - bucket into `a_status == FAIL` and others
    - deterministic shuffle each bucket using seed hash of `(allocationLotterySeed, pid, incomingS.id, "INCOMING_S", bucketName)`
    - process FAIL bucket first, then NORM bucket
-5. Iterate in that order:
+6. Iterate in that order:
    - apply signed allocation
    - update candidate `T.q_a_total += delta`
    - set candidate `T.q_a_delta_last = delta`
    - update incoming `S.q_a += delta`
    - emit `TS(...)` with `q = T.q`, `q_a_delta = delta`, `q_a_total_after = updated T.q_a_total`
-6. Append sign-incompatible `T` unchanged.
-7. Persist every updated `T` with per-item upsert/delete mutation according to open/closed residual.
-8. Persist incoming `S` with upsert/delete mutation according to open/closed residual.
+7. Append sign-incompatible remaining `T` unchanged, then append already auto-allocated opposite-sign `T`.
+8. Persist every updated `T` with per-item upsert/delete mutation according to open/closed residual.
+9. Persist incoming `S` with upsert/delete mutation according to open/closed residual.
 
 Special `sDate` rule for `T`: same as incoming `T` flow (set when a `T` becomes fully allocated).
 

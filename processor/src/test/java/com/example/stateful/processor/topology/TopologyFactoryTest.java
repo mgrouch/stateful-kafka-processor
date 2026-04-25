@@ -312,11 +312,11 @@ class TopologyFactoryTest {
 
 
     @Test
-    void incomingRDirectionSDoesNotForceCloseNegativeT() throws Exception {
+    void incomingRDirectionSDoesNotForceCloseNegativeTWithNaiveStrategy() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
-        try (TopologyTestDriver driver = harness.driver(t0)) {
+        try (TopologyTestDriver driver = harness.driver(t0, new NaiveAlocationStrategy(1357911L))) {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
@@ -366,11 +366,11 @@ class TopologyFactoryTest {
     }
 
     @Test
-    void incomingDDirectionSDoesNotForceClosePositiveT() throws Exception {
+    void incomingDDirectionSDoesNotForceClosePositiveTWithNaiveStrategy() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
-        try (TopologyTestDriver driver = harness.driver(t0)) {
+        try (TopologyTestDriver driver = harness.driver(t0, new NaiveAlocationStrategy(1357911L))) {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
@@ -470,7 +470,7 @@ class TopologyFactoryTest {
         }
 
         private TopologyTestDriver driver(Instant t0) {
-            return driver(t0, new NaiveAlocationStrategy(settings.allocationLotterySeed()));
+            return driver(t0, new AutoAllocOppositeStrategy(settings.allocationLotterySeed()));
         }
 
         private TopologyTestDriver driver(Instant t0, AllocationStrategy allocationStrategy) {
