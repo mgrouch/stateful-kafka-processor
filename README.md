@@ -68,6 +68,8 @@ Validation and defaults:
 - Input topic: `input-events`
 - Processed output topic: `processed-events`
 - DB sync output topic: `db-sync-events`
+- Failed `T` output topic: `failed-t-events`
+- `S` with `q_carry` output topic: `s-with-q-carry-events`
 - Kafka key remains `pid` for all topics.
 
 Kafka Streams state stores:
@@ -193,5 +195,5 @@ mvn clean verify
 
 ```bash
 docker compose up -d kafka
-mvn -pl processor spring-boot:run -Dspring-boot.run.arguments="--spring.kafka.bootstrap-servers=localhost:9093 --app.kafka.security-protocol=SSL --app.kafka.ssl.truststore-location=/path/to/client.truststore.jks --app.kafka.ssl.truststore-password=changeit --app.application-id=stateful-data-processor --app.input-topic=input-events --app.output-topic=processed-events --app.db-sync-topic=db-sync-events"
+mvn -pl processor spring-boot:run -Dspring-boot.run.arguments="--spring.kafka.bootstrap-servers=localhost:9093 --app.kafka.security-protocol=SSL --app.kafka.ssl.truststore-location=/path/to/client.truststore.jks --app.kafka.ssl.truststore-password=changeit --app.application-id=stateful-data-processor --app.input-topic=input-events --app.output-topic=processed-events --app.db-sync-topic=db-sync-events --app.failed-t-topic=failed-t-events --app.s-with-q-carry-topic=s-with-q-carry-events"
 ```

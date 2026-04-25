@@ -25,6 +25,8 @@ public final class TopologyFactory {
     static final String PROCESSOR = "stateful-envelope-processor";
     public static final String PROCESSED_SINK = "processed-events-sink";
     public static final String DB_SYNC_SINK = "db-sync-events-sink";
+    public static final String FAILED_T_SINK = "failed-t-events-sink";
+    public static final String S_WITH_Q_CARRY_SINK = "s-with-q-carry-events-sink";
 
     private TopologyFactory() {
     }
@@ -82,6 +84,22 @@ public final class TopologyFactory {
                 settings.dbSyncTopic(),
                 stringSerde.serializer(),
                 dbSyncSerde.serializer(),
+                PROCESSOR
+        );
+
+        topology.addSink(
+                FAILED_T_SINK,
+                settings.failedTTopic(),
+                stringSerde.serializer(),
+                envelopeSerde.serializer(),
+                PROCESSOR
+        );
+
+        topology.addSink(
+                S_WITH_Q_CARRY_SINK,
+                settings.sWithQCarryTopic(),
+                stringSerde.serializer(),
+                envelopeSerde.serializer(),
                 PROCESSOR
         );
 

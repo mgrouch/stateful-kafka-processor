@@ -3,6 +3,7 @@ package com.example.stateful.processor.processor;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
+import com.example.stateful.domain.AStatus;
 import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.DbSyncMutationType;
 import com.example.stateful.messaging.MessageEnvelope;
@@ -90,6 +91,9 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
         tDedupeStore.put(dedupeKey, timestamp);
         emitDbSync(pid, DbSyncMutationType.ACCEPTED_T, incomingT, null, null, record, ordinal++);
+        if (incomingT.a_status() == AStatus.FAIL) {
+            emitFailedT(pid, incomingT, record.timestamp());
+        }
 
         if (incomingT.cancel() && tryProcessCancellation(record, pid, incomingT, ordinal)) {
             return;
@@ -169,6 +173,9 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     private void handleS(Record<String, MessageEnvelope> record, String pid, int ordinal) {
         S incomingS = record.value().s();
         emitDbSync(pid, DbSyncMutationType.ACCEPTED_S, null, incomingS, null, record, ordinal++);
+        if (incomingS.q_carry() != 0L) {
+            emitSWithQCarry(pid, incomingS, record.timestamp());
+        }
 
         List<T> candidates = loadT(pid);
         AllocationResult allocation = transitionsLogic.allocateForIncomingS(candidates, incomingS, buildTsIdPrefix(record, "s", incomingS.id()));
@@ -302,6 +309,14 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     private void emitProcessed(String pid, MessageEnvelope value, long timestamp) {
         context().forward(new Record<>(pid, value, timestamp), TopologyFactory.PROCESSED_SINK);
+    }
+
+    private void emitFailedT(String pid, T value, long timestamp) {
+        context().forward(new Record<>(pid, MessageEnvelope.forT(value), timestamp), TopologyFactory.FAILED_T_SINK);
+    }
+
+    private void emitSWithQCarry(String pid, S value, long timestamp) {
+        context().forward(new Record<>(pid, MessageEnvelope.forS(value), timestamp), TopologyFactory.S_WITH_Q_CARRY_SINK);
     }
 
     private void emitDbSync(String pid,
