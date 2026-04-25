@@ -27,10 +27,7 @@ No `processedT`/`processedS` stores are introduced.
 
 - Incoming `T` allocates only against `S` with sign-compatible remaining supply.
 - Incoming `S` has a mandatory direction/sign constraint: `dir=D => q<0`, `dir=R => q>0`.
-- Incoming `S` first force-closes opposite-side `T` and emits `TS` for each full close:
-  - `S.dir=R`: every matching `T` with `q<0` is fully allocated (`T.q_a_total = T.q`).
-  - `S.dir=D`: every matching `T` with `q>0` is fully allocated (`T.q_a_total = T.q`).
-- After forced closes, remaining `S` quantity allocates against sign-compatible `T` with normal priority/lottery ordering.
+- Incoming `S` allocates only against sign-compatible `T` with normal priority/lottery ordering.
 
 ### Allocation quantity fields
 

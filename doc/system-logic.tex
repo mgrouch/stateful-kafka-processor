@@ -167,22 +167,14 @@ Given incoming $S_{in}$:
 \begin{enumerate}[leftmargin=*]
   \item Emit mutation \texttt{ACCEPTED\_S}.
   \item Enforce direction/sign invariant for incoming $S_{in}$: $\theta_S=D \Rightarrow q<0$ and $\theta_S=R \Rightarrow q>0$.
-  \item Force-close opposite-side $T$ candidates and emit one $TS$ per forced close:
-  \[
-  \theta_S=R \Rightarrow \forall T_i\in\mathcal{T}_p \text{ with } q_i<0:\ q_{a,i}\gets q_i;
-  \]
-  \[
-  \theta_S=D \Rightarrow \forall T_i\in\mathcal{T}_p \text{ with } q_i>0:\ q_{a,i}\gets q_i.
-  \]
-  Each such full close emits $TS$ with $q_{a,\Delta}^{(TS)}=R_T(T_i)$ and $q_{a,total,after}^{(TS)}=q^{(T_i)}$, and closed $T_i$ are removed from $\mathcal{T}_p$.
-  \item On the remaining $T$ candidates, select compatible candidates by $\mathrm{Compat}(R_S(S_{in}),R_T(T_i))$.
+  \item On $T$ candidates, select compatible candidates by $\mathrm{Compat}(R_S(S_{in}),R_T(T_i))$.
   \item Partition these candidates into $a=\texttt{FAIL}$ and $a\neq\texttt{FAIL}$ buckets.
   \item Canonically sort by $id$ in each bucket, then apply deterministic shuffle with seed
   \[
   h(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName).
   \]
   \item Iterate candidates in order; apply signed allocation update and emit $TS$ for nonzero $\delta$.
-  \item The iteration is exhaustive over all compatible remaining $T$ candidates in that deterministic order; it stops early only if $R_S(S_{in})=0$.
+  \item The iteration is exhaustive over all compatible $T$ candidates in that deterministic order; it stops early only if $R_S(S_{in})=0$.
   \item Forward emitted $TS$ and mutation \texttt{GENERATED\_TS}.
   \item Rewrite $\mathcal{T}_p$ with item-wise upsert/delete mutations.
   \item Keep/remove incoming $S_{in}$ in $\mathcal{S}_p$ with final upsert/delete mutation.
