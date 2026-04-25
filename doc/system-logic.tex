@@ -117,6 +117,7 @@ Dedupe window is $W=14$ days (milliseconds in implementation).
 
 \section{Transition Steps}
 Each input kind is in $\{T,S,TS\}$. Transition is deterministic given source metadata and state.
+Default runtime strategy is \texttt{AutoAllocOppositeStrategy}.
 
 \subsection{Incoming $T$}
 \begin{enumerate}[leftmargin=*]
@@ -149,15 +150,16 @@ Additionally, when a $T$ becomes fully allocated ($q_{a,total}=q$), set $sDate$ 
 \begin{enumerate}[leftmargin=*]
   \item Emit mutation \texttt{ACCEPTED\_S}.
   \item Load all $T\in\mathcal{T}_p$.
-  \item Split by sign compatibility with current $R_S(S_{in})$.
-  \item For compatible $T$: canonical sort by $id$, then bucket by $a\_status$ into $FAIL$ and $NORM$.
+  \item Auto-allocate opposite-sign $T$ first: for each opposite-sign candidate, set $q_{a,total}\gets q$, set $q_{a,\Delta,last}\gets q-q_{a,total}^{old}$, emit $TS$ when the delta is non-zero, and accumulate the same delta into $S_{in}.q_{a,opposite,\Delta}$ and $S_{in}.q_{a,opposite,total}$.
+  \item Split remaining $T$ by sign compatibility with updated residual $R_S(S_{in})$.
+  \item For compatible remaining $T$: canonical sort by $id$, then bucket by $a\_status$ into $FAIL$ and $NORM$.
   \item Deterministically shuffle each bucket with seed
   \[
   hash(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName),
   \]
   then process $FAIL$ bucket first, $NORM$ second.
   \item For each selected $T_i$, apply signed update and emit $TS$ when $\delta\neq 0$.
-  \item Append incompatible $T$ unchanged.
+  \item Append incompatible remaining $T$ unchanged, then append the already auto-allocated opposite-sign $T$.
   \item Persist each updated $T$ as upsert/delete by open/closed residual.
   \item Persist incoming $S$ as upsert/delete by open/closed residual.
 \end{enumerate}
