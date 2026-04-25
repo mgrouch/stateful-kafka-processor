@@ -57,6 +57,42 @@ public final class NaiveAlocationStrategy implements AllocationStrategy {
         return ordered;
     }
 
+    @Override
+    public AllocationResult allocateForIncomingT(T incomingT, List<S> orderedCandidates, List<S> untouchedCandidates, String idPrefix) {
+        long incomingTOpen = TransitionsModel.remainingT(incomingT);
+        List<S> signCompatible = orderedCandidates.stream()
+                .filter(candidate -> areSignCompatible(incomingTOpen, TransitionsModel.remainingS(candidate)))
+                .toList();
+        List<S> signIncompatible = orderedCandidates.stream()
+                .filter(candidate -> !areSignCompatible(incomingTOpen, TransitionsModel.remainingS(candidate)))
+                .toList();
+        List<S> reorderedCompatible = orderSCandidatesForIncomingT(signCompatible, incomingT);
+        List<S> combinedUntouched = new ArrayList<>(untouchedCandidates.size() + signIncompatible.size());
+        combinedUntouched.addAll(untouchedCandidates);
+        combinedUntouched.addAll(signIncompatible);
+        return AllocationStrategy.super.allocateForIncomingT(incomingT, reorderedCompatible, combinedUntouched, idPrefix);
+    }
+
+    @Override
+    public AllocationResult allocateForIncomingS(List<T> orderedCandidates, List<T> untouchedCandidates, S incomingS, String idPrefix) {
+        long incomingSOpen = TransitionsModel.remainingS(incomingS);
+        List<T> signCompatible = orderedCandidates.stream()
+                .filter(candidate -> areSignCompatible(incomingSOpen, TransitionsModel.remainingT(candidate)))
+                .toList();
+        List<T> signIncompatible = orderedCandidates.stream()
+                .filter(candidate -> !areSignCompatible(incomingSOpen, TransitionsModel.remainingT(candidate)))
+                .toList();
+        List<T> reorderedCompatible = orderTCandidatesForIncomingS(signCompatible, incomingS);
+        List<T> combinedUntouched = new ArrayList<>(untouchedCandidates.size() + signIncompatible.size());
+        combinedUntouched.addAll(untouchedCandidates);
+        combinedUntouched.addAll(signIncompatible);
+        return AllocationStrategy.super.allocateForIncomingS(reorderedCompatible, combinedUntouched, incomingS, idPrefix);
+    }
+
+    private static boolean areSignCompatible(long lhs, long rhs) {
+        return lhs != 0 && rhs != 0 && Long.signum(lhs) == Long.signum(rhs);
+    }
+
     private List<T> shuffleDeterministically(List<T> bucket, String pid, String incomingId, String direction, String bucketName) {
         List<T> shuffled = new ArrayList<>(bucket);
         long seed = deriveAllocationSeed(pid, incomingId, direction, bucketName);
