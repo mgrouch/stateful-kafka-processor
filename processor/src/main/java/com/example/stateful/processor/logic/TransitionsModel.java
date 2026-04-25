@@ -21,15 +21,7 @@ public final class TransitionsModel {
 
     public AllocationResult allocateForIncomingT(T incomingT, List<S> candidates, String idPrefix) {
         requireSamePid(candidates.stream().map(S::pid).toList(), incomingT.pid(), "S candidate");
-        long incomingTOpen = remainingT(incomingT);
-        List<S> allocatableCandidates = candidates.stream()
-                .filter(candidate -> allocationStrategy.areSignCompatible(incomingTOpen, remainingS(candidate)))
-                .toList();
-        List<S> untouchedCandidates = candidates.stream()
-                .filter(candidate -> !allocationStrategy.areSignCompatible(incomingTOpen, remainingS(candidate)))
-                .toList();
-        List<S> orderedCandidates = allocationStrategy.orderSCandidatesForIncomingT(allocatableCandidates, incomingT);
-        AllocationResult result = allocationStrategy.allocateForIncomingT(incomingT, orderedCandidates, untouchedCandidates, idPrefix);
+        AllocationResult result = allocationStrategy.allocateForIncomingT(incomingT, candidates, List.of(), idPrefix);
         validateAllocationOutput(result.updatedIncomingT().pid(), List.of(result.updatedIncomingT()), result.updatedS(), result.emittedTs());
         return result;
     }
@@ -37,16 +29,7 @@ public final class TransitionsModel {
     public AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
         requireSamePid(candidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
 
-        long incomingSOpen = remainingS(incomingS);
-        List<T> allocatableCandidates = candidates.stream()
-                .filter(candidate -> allocationStrategy.areSignCompatible(incomingSOpen, remainingT(candidate)))
-                .toList();
-        List<T> untouchedCandidates = candidates.stream()
-                .filter(candidate -> !allocationStrategy.areSignCompatible(incomingSOpen, remainingT(candidate)))
-                .toList();
-        List<T> orderedCandidates = allocationStrategy.orderTCandidatesForIncomingS(allocatableCandidates, incomingS);
-
-        AllocationResult result = allocationStrategy.allocateForIncomingS(orderedCandidates, untouchedCandidates, incomingS, idPrefix);
+        AllocationResult result = allocationStrategy.allocateForIncomingS(candidates, List.of(), incomingS, idPrefix);
         validateAllocationOutput(result.updatedIncomingS().pid(), result.updatedT(), List.of(result.updatedIncomingS()), result.emittedTs());
         return result;
     }
