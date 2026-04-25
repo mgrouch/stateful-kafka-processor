@@ -5,45 +5,36 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import java.time.LocalDate;
 import java.util.Objects;
 
-public record T(String id,
-                String pid,
-                String ref,
-                LocalDate tDate,
-                LocalDate sDate,
-                boolean cancel,
-                long q,
-                @JsonAlias("q_a") long q_a_total,
-                long q_a_delta_last,
-                long q_f,
-                AStatus a_status,
-                String accId,
-                TT tt) {
+public record T(String id, String pid, String ref, String accId,
+                TT tt, LocalDate tDate, LocalDate sDate, AStatus a_status, boolean cancel,
+                long q, @JsonAlias("q_a") long q_a_total, long q_a_delta_last, long q_f
+) {
     public T(String id, String pid, String ref, boolean cancel, long q, long q_a_total) {
-        this(id, pid, ref, null, null, cancel, q, q_a_total, 0L, 0L, AStatus.NORM, null, TT.B);
+        this(id, pid, ref, null, TT.B, null, null, AStatus.NORM, cancel, q, q_a_total, 0L, 0L);
     }
 
     public T(String id, String pid, String ref, boolean cancel, long q, long q_a_total, AStatus a_status) {
-        this(id, pid, ref, null, null, cancel, q, q_a_total, 0L, 0L, a_status, null, TT.B);
+        this(id, pid, ref, null, TT.B, null, null, a_status, cancel, q, q_a_total, 0L, 0L);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total) {
-        this(id, pid, ref, tDate, null, cancel, q, q_a_total, 0L, 0L, AStatus.NORM, null, TT.B);
+        this(id, pid, ref, null, TT.B, tDate, null, AStatus.NORM, cancel, q, q_a_total, 0L, 0L);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total, AStatus a_status) {
-        this(id, pid, ref, tDate, null, cancel, q, q_a_total, 0L, 0L, a_status, null, TT.B);
+        this(id, pid, ref, null, TT.B, tDate, null, a_status, cancel, q, q_a_total, 0L, 0L);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total, AStatus a_status, TT tt) {
-        this(id, pid, ref, tDate, null, cancel, q, q_a_total, 0L, 0L, a_status, null, tt);
+        this(id, pid, ref, null, tt, tDate, null, a_status, cancel, q, q_a_total, 0L, 0L);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, LocalDate sDate, boolean cancel, long q, long q_a_total, long q_a_delta_last, AStatus a_status, TT tt) {
-        this(id, pid, ref, tDate, sDate, cancel, q, q_a_total, q_a_delta_last, 0L, a_status, null, tt);
+        this(id, pid, ref, null, tt, tDate, sDate, a_status, cancel, q, q_a_total, q_a_delta_last, 0L);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, LocalDate sDate, boolean cancel, long q, long q_a_total, long q_a_delta_last, long q_f, AStatus a_status, TT tt) {
-        this(id, pid, ref, tDate, sDate, cancel, q, q_a_total, q_a_delta_last, q_f, a_status, null, tt);
+        this(id, pid, ref, null, tt, tDate, sDate, a_status, cancel, q, q_a_total, q_a_delta_last, q_f);
     }
 
     public T {

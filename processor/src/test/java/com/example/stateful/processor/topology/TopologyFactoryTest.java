@@ -145,7 +145,7 @@ class TopologyFactoryTest {
 
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-b", "AAA", "R-1", false, 30L, 0L, AStatus.NORM)), t0.toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-a", "AAA", "R-2", false, 30L, 0L, AStatus.NORM)), t0.plusMillis(1).toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-fail", "AAA", "R-3", null, null, false, 30L, 0L, 0L, 5L, AStatus.FAIL, null, TT.B)), t0.plusMillis(2).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-fail", "AAA", "R-3", null, TT.B, null, null, AStatus.FAIL, false, 30L, 0L, 0L, 5L)), t0.plusMillis(2).toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 70L, 0L, true)), t0.plusMillis(3).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
@@ -319,7 +319,7 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-1", "AAA", "R-N-1", null, false, -15L, 0L, AStatus.NORM, TT.S)), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-2", "AAA", "R-N-2", null, null, false, -25L, -10L, 0L, -3L, AStatus.FAIL, null, TT.S)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-2", "AAA", "R-N-2", null, TT.S, null, null, AStatus.FAIL, false, -25L, -10L, 0L, -3L)), t0.plusMillis(1).toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-r", "AAA", 5L, 0L)), t0.plusMillis(2).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();

@@ -49,7 +49,7 @@ final class TransitionsLogic {
             if (allocated != 0) {
                 long nextTotal = updatedT.q_a_total() + allocated;
                 LocalDate allocatedSDate = nextTotal == updatedT.q() ? nextSDate(updatedT.sDate(), candidate.bDate()) : updatedT.sDate();
-                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.tDate(), allocatedSDate, updatedT.cancel(), updatedT.q(), nextTotal, allocated, updatedT.q_f(), updatedT.a_status(), updatedT.accId(), updatedT.tt());
+                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.accId(), updatedT.tt(), updatedT.tDate(), allocatedSDate, updatedT.a_status(), updatedT.cancel(), updatedT.q(), nextTotal, allocated, updatedT.q_f());
                 S nextS = new S(candidate.id(), candidate.pid(), candidate.bDate(), candidate.q(), candidate.q_carry(), candidate.q_a() + allocated, candidate.rollover(), candidate.dir());
                 updatedS.add(nextS);
                 emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.accId(), updatedT.tDate(), nextS.bDate(), updatedT.q(), allocated, nextTotal, updatedT.tt()));
@@ -87,7 +87,7 @@ final class TransitionsLogic {
             if (allocated != 0) {
                 long nextTotal = candidate.q_a_total() + allocated;
                 LocalDate allocatedSDate = nextTotal == candidate.q() ? nextSDate(candidate.sDate(), updatedS.bDate()) : candidate.sDate();
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), allocatedSDate, candidate.cancel(), candidate.q(), nextTotal, allocated, candidate.q_f(), candidate.a_status(), candidate.accId(), candidate.tt());
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.accId(), candidate.tt(), candidate.tDate(), allocatedSDate, candidate.a_status(), candidate.cancel(), candidate.q(), nextTotal, allocated, candidate.q_f());
                 updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.bDate(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.rollover(), updatedS.dir());
                 updatedT.add(nextT);
                 emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.accId(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextTotal, nextT.tt()));

@@ -19,7 +19,7 @@ class MessageEnvelopeSerdeTest {
         mapper.findAndRegisterModules();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "AAA", "REF-10", null, null, true, 77L, 11L, 0L, 9L, AStatus.FAIL, null, null));
+        MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "AAA", "REF-10", null, null, null, null, AStatus.FAIL, true, 77L, 11L, 0L, 9L));
 
         String json = mapper.writeValueAsString(original);
         MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
