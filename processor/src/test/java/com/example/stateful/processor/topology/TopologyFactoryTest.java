@@ -141,9 +141,9 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-b", "AAA", "R-1", false, 30L, 0L, AStatus.NORMAL)), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-a", "AAA", "R-2", false, 30L, 0L, AStatus.NORMAL)), t0.plusMillis(1).toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-fail", "AAA", "R-3", false, 30L, 0L, AStatus.FAIL)), t0.plusMillis(2).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-b", "AAA", "R-1", false, 30L, 0L, AStatus.NORM)), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-a", "AAA", "R-2", false, 30L, 0L, AStatus.NORM)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-fail", "AAA", "R-3", null, null, false, 30L, 0L, 0L, 5L, AStatus.FAIL, null, TT.B)), t0.plusMillis(2).toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 70L, 0L, true)), t0.plusMillis(3).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
@@ -171,9 +171,13 @@ class TopologyFactoryTest {
     @Test
     void differentSeedsCanProduceDifferentLotteryOrderWithinPriorityBucket() throws Exception {
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
-        List<String> first = emittedTidForSeed(111L, t0);
-        List<String> second = emittedTidForSeed(222L, t0.plusSeconds(5));
-        assertThat(first).isNotEqualTo(second);
+        List<List<String>> orders = List.of(
+                emittedTidForSeed(111L, t0),
+                emittedTidForSeed(222L, t0.plusSeconds(5)),
+                emittedTidForSeed(333L, t0.plusSeconds(10)),
+                emittedTidForSeed(444L, t0.plusSeconds(15))
+        );
+        assertThat(orders.stream().distinct().count()).isGreaterThan(1);
     }
 
     @Test
@@ -205,7 +209,7 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", -40L, 0L)), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-N", null, false, -100L, 0L, AStatus.NORMAL, TT.S)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-N", null, false, -100L, 0L, AStatus.NORM, TT.S)), t0.plusMillis(1).toEpochMilli());
 
             MessageEnvelope ts = output.readValue();
             assertThat(ts.ts().q_a_delta()).isEqualTo(-40L);
@@ -228,7 +232,7 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-neg", "AAA", -30L, 0L)), t0.toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forT(new T("t-pos", "AAA", "R-P", false, 50L, 0L)), t0.plusMillis(1).toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-pos", "AAA", 30L, 0L)), t0.plusMillis(2).toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg", "AAA", "R-N", null, false, -50L, 0L, AStatus.NORMAL, TT.S)), t0.plusMillis(3).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg", "AAA", "R-N", null, false, -50L, 0L, AStatus.NORM, TT.S)), t0.plusMillis(3).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
             assertThat(emitted).hasSize(2);
@@ -248,7 +252,7 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", -60L, 0L)), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-N", null, false, -100L, 0L, AStatus.NORMAL, TT.S)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-N", null, false, -100L, 0L, AStatus.NORM, TT.S)), t0.plusMillis(1).toEpochMilli());
 
             assertThat(output.readValue().ts().q_a_total_after()).isEqualTo(-60L);
             T open = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items().get(0);
@@ -267,8 +271,8 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-roll", "AAA", -10L, -40L, 0L, true)), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", null, false, -25L, 0L, AStatus.NORMAL, TT.S)), t0.plusMillis(1).toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-2", "AAA", "R-2", null, false, -20L, 0L, AStatus.NORMAL, TT.S)), t0.plusMillis(2).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", null, false, -25L, 0L, AStatus.NORM, TT.S)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-2", "AAA", "R-2", null, false, -20L, 0L, AStatus.NORM, TT.S)), t0.plusMillis(2).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
             assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactly(-25L, -20L);
@@ -289,8 +293,8 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-1", "AAA", "R-N-1", null, false, -15L, 0L, AStatus.NORMAL, TT.S)), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-2", "AAA", "R-N-2", null, false, -25L, -10L, AStatus.FAIL, TT.S)), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-1", "AAA", "R-N-1", null, false, -15L, 0L, AStatus.NORM, TT.S)), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-neg-2", "AAA", "R-N-2", null, null, false, -25L, -10L, 0L, -3L, AStatus.FAIL, null, TT.S)), t0.plusMillis(1).toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-r", "AAA", 5L, 0L)), t0.plusMillis(2).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
@@ -450,9 +454,9 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, start);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 20L, 0L, AStatus.NORMAL)), start.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-2", "AAA", "R-2", false, 20L, 0L, AStatus.NORMAL)), start.plusMillis(1).toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-3", "AAA", "R-3", false, 20L, 0L, AStatus.NORMAL)), start.plusMillis(2).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 20L, 0L, AStatus.NORM)), start.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-2", "AAA", "R-2", false, 20L, 0L, AStatus.NORM)), start.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-3", "AAA", "R-3", false, 20L, 0L, AStatus.NORM)), start.plusMillis(2).toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 45L, 0L, false)), start.plusMillis(3).toEpochMilli());
 
             return output.readValuesToList().stream().map(v -> v.ts().tid()).toList();

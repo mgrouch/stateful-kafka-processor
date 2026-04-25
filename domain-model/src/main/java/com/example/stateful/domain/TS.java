@@ -9,6 +9,7 @@ public record TS(String id,
                  String pid,
                  String tid,
                  String sid,
+                 String accId,
                  LocalDate tDate,
                  LocalDate sDate,
                  long q,
@@ -16,11 +17,11 @@ public record TS(String id,
                  @JsonAlias("q_a") long q_a_total_after,
                  TT tt) {
     public TS(String id, String pid, String tid, String sid, long q, long q_a_delta) {
-        this(id, pid, tid, sid, null, null, q, q_a_delta, q_a_delta, TT.B);
+        this(id, pid, tid, sid, null, null, null, q, q_a_delta, q_a_delta, TT.B);
     }
 
     public TS(String id, String pid, String tid, String sid, LocalDate tDate, LocalDate sDate, long q, long q_a_delta) {
-        this(id, pid, tid, sid, tDate, sDate, q, q_a_delta, q_a_delta, TT.B);
+        this(id, pid, tid, sid, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B);
     }
 
     public TS {
@@ -28,6 +29,9 @@ public record TS(String id,
         requireText(pid, "pid");
         requireText(tid, "tid");
         requireText(sid, "sid");
+        if (accId != null && accId.isBlank()) {
+            throw new IllegalArgumentException("accId must not be blank when provided");
+        }
         tt = tt == null ? TT.B : tt;
         if (q == 0) {
             throw new IllegalArgumentException("q must not be 0");
