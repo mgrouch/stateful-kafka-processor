@@ -80,21 +80,21 @@ class KafkaProcessorIT {
                  KafkaConsumer<String, MessageEnvelope> consumer = consumer(serdeFactory, outputTopic);
                  KafkaConsumer<String, DbSyncEnvelope> dbConsumer = dbSyncConsumer(serdeFactory, dbSyncTopic)) {
 
-                producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forT(new T("t-101", "IBM", "ref-101", false, 1000L, 0L)))).get();
-                producer.send(new ProducerRecord<>(inputTopic, "IBM", MessageEnvelope.forS(new S("s-101", "IBM", 500L, 0L)))).get();
+                producer.send(new ProducerRecord<>(inputTopic, "AAA", MessageEnvelope.forT(new T("t-101", "AAA", "ref-101", false, 1000L, 0L)))).get();
+                producer.send(new ProducerRecord<>(inputTopic, "AAA", MessageEnvelope.forS(new S("s-101", "AAA", 500L, 0L)))).get();
                 producer.flush();
 
                 ConsumerRecord<String, MessageEnvelope> output = pollOne(consumer, Duration.ofSeconds(30));
                 ConsumerRecord<String, DbSyncEnvelope> dbSyncOutput = pollOne(dbConsumer, Duration.ofSeconds(30));
-                assertThat(output.key()).isEqualTo("IBM");
+                assertThat(output.key()).isEqualTo("AAA");
                 assertThat(output.value().kind().name()).isEqualTo("TS");
                 assertThat(output.value().ts().id()).startsWith("ts-s-s-101-");
-                assertThat(output.value().ts().pid()).isEqualTo("IBM");
+                assertThat(output.value().ts().pid()).isEqualTo("AAA");
                 assertThat(output.value().ts().q_a()).isEqualTo(500L);
-                assertThat(dbSyncOutput.key()).isEqualTo("IBM");
+                assertThat(dbSyncOutput.key()).isEqualTo("AAA");
 
-                Optional<TBucket> tBucket = waitFor(() -> manager.readUnprocessedT("IBM"), Duration.ofSeconds(15));
-                Optional<SBucket> sBucket = waitFor(() -> manager.readUnprocessedS("IBM"), Duration.ofSeconds(15));
+                Optional<TBucket> tBucket = waitFor(() -> manager.readUnprocessedT("AAA"), Duration.ofSeconds(15));
+                Optional<SBucket> sBucket = waitFor(() -> manager.readUnprocessedS("AAA"), Duration.ofSeconds(15));
 
                 assertThat(tBucket).isPresent();
                 assertThat(tBucket).isPresent();

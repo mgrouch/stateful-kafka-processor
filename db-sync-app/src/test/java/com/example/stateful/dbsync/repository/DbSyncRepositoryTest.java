@@ -41,8 +41,8 @@ class DbSyncRepositoryTest {
     @Test
     void offsetsAndRowChangesCommitInSingleTransaction() throws Exception {
         DbSyncBatch batch = DbSyncBatch.from(List.of(
-                record(0, 10, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-1", "IBM", "R", false, 11, 0), null, null, 0)),
-                record(0, 11, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R", false, 11, 0), null, null, 1)),
+                record(0, 10, event(DbSyncMutationType.ACCEPTED_T, "AAA", new T("t-1", "AAA", "R", false, 11, 0), null, null, 0)),
+                record(0, 11, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "AAA", new T("t-1", "AAA", "R", false, 11, 0), null, null, 1)),
                 record(1, 3, event(DbSyncMutationType.ACCEPTED_S, "MSFT", null, new S("s-1", "MSFT", 9, 0), null, 2))
         ));
 
@@ -59,7 +59,7 @@ class DbSyncRepositoryTest {
 
     @Test
     void restartLoadsOffsetsFromDatabase() {
-        DbSyncBatch batch = DbSyncBatch.from(List.of(record(2, 25, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-1", "IBM", "t-1", "s-1", 99, 99), 0))));
+        DbSyncBatch batch = DbSyncBatch.from(List.of(record(2, 25, event(DbSyncMutationType.GENERATED_TS, "AAA", null, null, new TS("ts-1", "AAA", "t-1", "s-1", 99, 99), 0))));
         repository.applyBatch(GROUP, TOPIC, batch);
 
         Map<TopicPartition, Long> offsets = repository.loadOffsets(GROUP, TOPIC, List.of(2));
@@ -69,9 +69,9 @@ class DbSyncRepositoryTest {
     @Test
     void stateUpsertAndDeleteKeepFinalStateCorrect() throws Exception {
         DbSyncBatch batch = DbSyncBatch.from(List.of(
-                record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R1", false, 1, 0), null, null, 0)),
-                record(0, 2, event(DbSyncMutationType.DELETE_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R1", false, 1, 1), null, null, 1)),
-                record(0, 3, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "IBM", null, new S("s-1", "IBM", 4, 0), null, 2))
+                record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "AAA", new T("t-1", "AAA", "R1", false, 1, 0), null, null, 0)),
+                record(0, 2, event(DbSyncMutationType.DELETE_UNPROCESSED_T, "AAA", new T("t-1", "AAA", "R1", false, 1, 1), null, null, 1)),
+                record(0, 3, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "AAA", null, new S("s-1", "AAA", 4, 0), null, 2))
         ));
 
         repository.applyBatch(GROUP, TOPIC, batch);
@@ -87,7 +87,7 @@ class DbSyncRepositoryTest {
         DataSource failingDataSource = commitFailingDataSource(dataSource);
         DbSyncRepository failingRepository = new DbSyncRepository(failingDataSource);
 
-        DbSyncBatch batch = DbSyncBatch.from(List.of(record(0, 5, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-2", "IBM", "R2", false, 12, 0), null, null, 0))));
+        DbSyncBatch batch = DbSyncBatch.from(List.of(record(0, 5, event(DbSyncMutationType.ACCEPTED_T, "AAA", new T("t-2", "AAA", "R2", false, 12, 0), null, null, 0))));
 
         assertThatThrownBy(() -> failingRepository.applyBatch(GROUP, TOPIC, batch))
                 .isInstanceOf(IllegalStateException.class)
@@ -100,9 +100,9 @@ class DbSyncRepositoryTest {
     @Test
     void acceptedAndGeneratedTablesAreWritten() throws Exception {
         DbSyncBatch batch = DbSyncBatch.from(List.of(
-                record(0, 0, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-3", "IBM", "R3", false, 20, 0), null, null, 0)),
-                record(0, 1, event(DbSyncMutationType.ACCEPTED_S, "IBM", null, new S("s-3", "IBM", 21, 0), null, 1)),
-                record(0, 2, event(DbSyncMutationType.GENERATED_TS, "IBM", null, null, new TS("ts-3", "IBM", "t-3", "s-3", 22, 22), 2))
+                record(0, 0, event(DbSyncMutationType.ACCEPTED_T, "AAA", new T("t-3", "AAA", "R3", false, 20, 0), null, null, 0)),
+                record(0, 1, event(DbSyncMutationType.ACCEPTED_S, "AAA", null, new S("s-3", "AAA", 21, 0), null, 1)),
+                record(0, 2, event(DbSyncMutationType.GENERATED_TS, "AAA", null, null, new TS("ts-3", "AAA", "t-3", "s-3", 22, 22), 2))
         ));
 
         repository.applyBatch(GROUP, TOPIC, batch);
@@ -117,9 +117,9 @@ class DbSyncRepositoryTest {
     @Test
     void batchingWithMultipleMutationTypesCommitsTogether() throws Exception {
         DbSyncBatch batch = DbSyncBatch.from(List.of(
-                record(0, 40, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-40", "IBM", "R", false, 40, 0), null, null, 0)),
-                record(0, 41, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-40", "IBM", "R", false, 40, 0), null, null, 1)),
-                record(0, 42, event(DbSyncMutationType.DELETE_UNPROCESSED_S, "IBM", null, new S("s-40", "IBM", 40, 40), null, 2)),
+                record(0, 40, event(DbSyncMutationType.ACCEPTED_T, "AAA", new T("t-40", "AAA", "R", false, 40, 0), null, null, 0)),
+                record(0, 41, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "AAA", new T("t-40", "AAA", "R", false, 40, 0), null, null, 1)),
+                record(0, 42, event(DbSyncMutationType.DELETE_UNPROCESSED_S, "AAA", null, new S("s-40", "AAA", 40, 40), null, 2)),
                 record(1, 8, event(DbSyncMutationType.ACCEPTED_S, "MSFT", null, new S("s-8", "MSFT", 8, 0), null, 3))
         ));
 
@@ -136,8 +136,8 @@ class DbSyncRepositoryTest {
     @Test
     void partitionAwareOffsetsPersistMaxPerPartition() {
         DbSyncBatch batch = DbSyncBatch.from(List.of(
-                record(0, 10, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-10", "IBM", "R", false, 10, 0), null, null, 0)),
-                record(0, 12, event(DbSyncMutationType.ACCEPTED_T, "IBM", new T("t-12", "IBM", "R", false, 12, 0), null, null, 1)),
+                record(0, 10, event(DbSyncMutationType.ACCEPTED_T, "AAA", new T("t-10", "AAA", "R", false, 10, 0), null, null, 0)),
+                record(0, 12, event(DbSyncMutationType.ACCEPTED_T, "AAA", new T("t-12", "AAA", "R", false, 12, 0), null, null, 1)),
                 record(1, 1, event(DbSyncMutationType.ACCEPTED_S, "MSFT", null, new S("s-1", "MSFT", 1, 0), null, 2))
         ));
 
@@ -151,38 +151,38 @@ class DbSyncRepositoryTest {
     @Test
     void multipleOpenTRowsPerPidArePreservedAndDeleteRemovesOnlyTargetRow() throws Exception {
         DbSyncBatch upsertBatch = DbSyncBatch.from(List.of(
-                record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R1", false, 10, 0), null, null, 0)),
-                record(0, 2, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "IBM", new T("t-2", "IBM", "R2", false, 11, 0), null, null, 1))
+                record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "AAA", new T("t-1", "AAA", "R1", false, 10, 0), null, null, 0)),
+                record(0, 2, event(DbSyncMutationType.UPSERT_UNPROCESSED_T, "AAA", new T("t-2", "AAA", "R2", false, 11, 0), null, null, 1))
         ));
         repository.applyBatch(GROUP, TOPIC, upsertBatch);
 
         DbSyncBatch deleteBatch = DbSyncBatch.from(List.of(
-                record(0, 3, event(DbSyncMutationType.DELETE_UNPROCESSED_T, "IBM", new T("t-1", "IBM", "R1", false, 10, 10), null, null, 0))
+                record(0, 3, event(DbSyncMutationType.DELETE_UNPROCESSED_T, "AAA", new T("t-1", "AAA", "R1", false, 10, 10), null, null, 0))
         ));
         repository.applyBatch(GROUP, TOPIC, deleteBatch);
 
         try (Connection connection = dataSource.getConnection()) {
-            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_t_state WHERE pid='IBM'", 1);
-            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_t_state WHERE pid='IBM' AND t_id='t-2'", 1);
+            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_t_state WHERE pid='AAA'", 1);
+            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_t_state WHERE pid='AAA' AND t_id='t-2'", 1);
         }
     }
 
     @Test
     void multipleOpenSRowsPerPidArePreservedAndDeleteRemovesOnlyTargetRow() throws Exception {
         DbSyncBatch upsertBatch = DbSyncBatch.from(List.of(
-                record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "IBM", null, new S("s-1", "IBM", 10, 0), null, 0)),
-                record(0, 2, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "IBM", null, new S("s-2", "IBM", 11, 0), null, 1))
+                record(0, 1, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "AAA", null, new S("s-1", "AAA", 10, 0), null, 0)),
+                record(0, 2, event(DbSyncMutationType.UPSERT_UNPROCESSED_S, "AAA", null, new S("s-2", "AAA", 11, 0), null, 1))
         ));
         repository.applyBatch(GROUP, TOPIC, upsertBatch);
 
         DbSyncBatch deleteBatch = DbSyncBatch.from(List.of(
-                record(0, 3, event(DbSyncMutationType.DELETE_UNPROCESSED_S, "IBM", null, new S("s-1", "IBM", 10, 10), null, 0))
+                record(0, 3, event(DbSyncMutationType.DELETE_UNPROCESSED_S, "AAA", null, new S("s-1", "AAA", 10, 10), null, 0))
         ));
         repository.applyBatch(GROUP, TOPIC, deleteBatch);
 
         try (Connection connection = dataSource.getConnection()) {
-            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_s_state WHERE pid='IBM'", 1);
-            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_s_state WHERE pid='IBM' AND s_id='s-2'", 1);
+            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_s_state WHERE pid='AAA'", 1);
+            assertCount(connection, "SELECT COUNT(*) FROM unprocessed_s_state WHERE pid='AAA' AND s_id='s-2'", 1);
         }
     }
 

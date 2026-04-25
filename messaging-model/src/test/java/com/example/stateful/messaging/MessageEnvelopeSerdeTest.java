@@ -19,14 +19,14 @@ class MessageEnvelopeSerdeTest {
         mapper.findAndRegisterModules();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "IBM", "REF-10", true, 77L, 11L, AStatus.FAIL));
+        MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "AAA", "REF-10", true, 77L, 11L, AStatus.FAIL));
 
         String json = mapper.writeValueAsString(original);
         MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
 
         assertEquals(MessageKind.T, parsed.kind());
         assertEquals("t-1", parsed.t().id());
-        assertEquals("IBM", parsed.t().pid());
+        assertEquals("AAA", parsed.t().pid());
         assertEquals("REF-10", parsed.t().ref());
         assertTrue(parsed.t().cancel());
         assertEquals(77L, parsed.t().q());
@@ -40,14 +40,14 @@ class MessageEnvelopeSerdeTest {
         mapper.findAndRegisterModules();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        MessageEnvelope original = MessageEnvelope.forS(new S("s-1", "IBM", 91L, 9L, 8L, true));
+        MessageEnvelope original = MessageEnvelope.forS(new S("s-1", "AAA", 91L, 9L, 8L, true));
 
         String json = mapper.writeValueAsString(original);
         MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
 
         assertEquals(MessageKind.S, parsed.kind());
         assertEquals("s-1", parsed.s().id());
-        assertEquals("IBM", parsed.s().pid());
+        assertEquals("AAA", parsed.s().pid());
         assertEquals(91L, parsed.s().q());
         assertEquals(9L, parsed.s().q_carry());
         assertEquals(8L, parsed.s().q_a());
@@ -60,13 +60,13 @@ class MessageEnvelopeSerdeTest {
         mapper.findAndRegisterModules();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        MessageEnvelope original = MessageEnvelope.forTS(new TS("ts-1", "IBM", "t-1", "s-1", 99L, 12L));
+        MessageEnvelope original = MessageEnvelope.forTS(new TS("ts-1", "AAA", "t-1", "s-1", 99L, 12L));
 
         String json = mapper.writeValueAsString(original);
         MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
 
         assertEquals(MessageKind.TS, parsed.kind());
-        assertEquals("IBM", parsed.ts().pid());
+        assertEquals("AAA", parsed.ts().pid());
         assertEquals("t-1", parsed.ts().tid());
         assertEquals("s-1", parsed.ts().sid());
         assertEquals(12L, parsed.ts().q_a());
