@@ -207,24 +207,6 @@ final class TransitionsLogic {
         return new SignedSupplyUsage(remainingCarry, remainingRegular);
     }
 
-    record AllocationResult(
-            T updatedIncomingT,
-            List<S> updatedS,
-            S updatedIncomingS,
-            List<T> updatedT,
-            List<TS> emittedTs
-    ) {
-        AllocationResult {
-            updatedS = List.copyOf(updatedS);
-            updatedT = List.copyOf(updatedT);
-            emittedTs = List.copyOf(emittedTs);
-        }
-
-        AllocationResult(T updatedIncomingT, List<S> updatedS, List<TS> emittedTs) {
-            this(updatedIncomingT, updatedS, null, List.of(), emittedTs);
-        }
-    }
-
     private record SignedSupplyUsage(long remainingCarry, long remainingRegular) {
     }
 }

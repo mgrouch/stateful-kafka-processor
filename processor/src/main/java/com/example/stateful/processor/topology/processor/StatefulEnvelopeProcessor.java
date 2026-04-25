@@ -97,7 +97,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         emitDbSync(pid, DbSyncMutationType.ACCEPTED_T, incomingT, null, null, record, ordinal++);
 
         List<S> candidates = loadS(pid);
-        TransitionsLogic.AllocationResult allocation = transitionsLogic.allocateForIncomingT(incomingT, candidates, buildTsIdPrefix(record, "t", incomingT.id()));
+        AllocationResult allocation = transitionsLogic.allocateForIncomingT(incomingT, candidates, buildTsIdPrefix(record, "t", incomingT.id()));
 
         for (TS ts : allocation.emittedTs()) {
             emitProcessed(pid, MessageEnvelope.forTS(ts), record.timestamp());
@@ -123,7 +123,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         emitDbSync(pid, DbSyncMutationType.ACCEPTED_S, null, incomingS, null, record, ordinal++);
 
         List<T> candidates = loadT(pid);
-        TransitionsLogic.AllocationResult allocation = transitionsLogic.allocateForIncomingS(candidates, incomingS, buildTsIdPrefix(record, "s", incomingS.id()));
+        AllocationResult allocation = transitionsLogic.allocateForIncomingS(candidates, incomingS, buildTsIdPrefix(record, "s", incomingS.id()));
 
         for (TS ts : allocation.emittedTs()) {
             emitProcessed(pid, MessageEnvelope.forTS(ts), record.timestamp());
