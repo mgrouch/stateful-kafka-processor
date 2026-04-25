@@ -19,10 +19,6 @@ public final class NaiveAlocationStrategy implements AllocationStrategy {
 
     private final long allocationLotterySeed;
 
-    public NaiveAlocationStrategy() {
-        this(1357911L);
-    }
-
     public NaiveAlocationStrategy(long allocationLotterySeed) {
         this.allocationLotterySeed = allocationLotterySeed;
     }

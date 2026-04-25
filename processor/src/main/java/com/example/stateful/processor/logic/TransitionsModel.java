@@ -28,7 +28,6 @@ public final class TransitionsModel {
 
     public AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
         requireSamePid(candidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
-
         AllocationResult result = allocationStrategy.allocateForIncomingS(candidates, List.of(), incomingS, idPrefix);
         validateAllocationOutput(result.updatedIncomingS().pid(), result.updatedT(), List.of(result.updatedIncomingS()), result.emittedTs());
         return result;
@@ -62,7 +61,6 @@ public final class TransitionsModel {
     public static long signedRemaining(long total, long allocated) {
         return total - allocated;
     }
-
 
     public static boolean isAllocatedWithinTotal(long total, long allocated) {
         if (allocated == 0L) {
