@@ -409,6 +409,27 @@ class TopologyFactoryTest {
     }
 
     @Test
+    void cancelTClosesMatchingUnprocessedTWithZeroAllocationAndEmitsCancelTs() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> inputTopic = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+            inputTopic.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 100L, 0L)), t0.toEpochMilli());
+            inputTopic.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", true, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
+
+            List<MessageEnvelope> emitted = output.readValuesToList();
+            assertThat(emitted).hasSize(1);
+            assertThat(emitted.get(0).ts().tid()).isEqualTo("t-1");
+            assertThat(emitted.get(0).ts().q_a_delta()).isEqualTo(100L);
+            assertThat(emitted.get(0).ts().q_a_total_after()).isEqualTo(100L);
+            assertThat(emitted.get(0).ts().cancel()).isTrue();
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
+        }
+    }
+
+    @Test
     void invalidAllocationStateFailsFast() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class MessageEnvelopeSerdeTest {
 
@@ -73,6 +74,7 @@ class MessageEnvelopeSerdeTest {
         assertEquals("s-1", parsed.ts().sid());
         assertEquals(12L, parsed.ts().q_a_delta());
         assertEquals(12L, parsed.ts().q_a_total_after());
+        assertFalse(parsed.ts().cancel());
     }
 
     @Test
@@ -94,5 +96,6 @@ class MessageEnvelopeSerdeTest {
         MessageEnvelope parsedTs = mapper.readValue(tsJson, MessageEnvelope.class);
         assertEquals(30L, parsedTs.ts().q_a_delta());
         assertEquals(70L, parsedTs.ts().q_a_total_after());
+        assertFalse(parsedTs.ts().cancel());
     }
 }

@@ -91,6 +91,10 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         tDedupeStore.put(dedupeKey, timestamp);
         emitDbSync(pid, DbSyncMutationType.ACCEPTED_T, incomingT, null, null, record, ordinal++);
 
+        if (incomingT.cancel() && tryProcessCancellation(record, pid, incomingT, ordinal)) {
+            return;
+        }
+
         List<S> candidates = loadS(pid);
         AllocationResult allocation = transitionsLogic.allocateForIncomingT(incomingT, candidates, buildTsIdPrefix(record, "t", incomingT.id()));
 
@@ -111,6 +115,55 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         }
 
         log.info("Processed T id={} pid={} q={} q_a_total={}", allocation.updatedIncomingT().id(), pid, allocation.updatedIncomingT().q(), allocation.updatedIncomingT().q_a_total());
+    }
+
+    private boolean tryProcessCancellation(Record<String, MessageEnvelope> record, String pid, T incomingT, int ordinal) {
+        T openTrade = loadT(pid).stream()
+                .filter(t -> t.id().equals(incomingT.id()))
+                .findFirst()
+                .orElse(null);
+        if (openTrade == null || openTrade.q_a_total() != 0L) {
+            return false;
+        }
+
+        long cancelDelta = openTrade.q() - openTrade.q_a_total();
+        T processedTrade = new T(
+                openTrade.id(),
+                openTrade.pid(),
+                openTrade.ref(),
+                openTrade.accId(),
+                openTrade.tt(),
+                openTrade.tDate(),
+                openTrade.sDate(),
+                openTrade.a_status(),
+                true,
+                openTrade.q(),
+                openTrade.q(),
+                cancelDelta,
+                openTrade.q_f(),
+                openTrade.ledgerTime()
+        );
+        TS cancelTs = new TS(
+                buildTsIdPrefix(record, "cancel", incomingT.id()) + "-1",
+                pid,
+                processedTrade.id(),
+                "cancel-" + processedTrade.id(),
+                processedTrade.accId(),
+                processedTrade.tDate(),
+                processedTrade.sDate(),
+                processedTrade.q(),
+                cancelDelta,
+                processedTrade.q_a_total(),
+                processedTrade.tt(),
+                true
+        );
+
+        emitProcessed(pid, MessageEnvelope.forTS(cancelTs), record.timestamp());
+        emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, cancelTs, record, ordinal++);
+        removeT(pid, processedTrade.id());
+        emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, processedTrade, null, null, record, ordinal);
+        log.info("Processed cancellation for T id={} pid={} q={}", processedTrade.id(), pid, processedTrade.q());
+        return true;
     }
 
     private void handleS(Record<String, MessageEnvelope> record, String pid, int ordinal) {
