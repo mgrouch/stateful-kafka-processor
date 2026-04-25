@@ -4,8 +4,6 @@ import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,42 +33,15 @@ final class TransitionsLogic {
                 .filter(candidate -> !allocationStrategy.areSignCompatible(incomingTOpen, remainingS(candidate)))
                 .toList();
         List<S> orderedCandidates = allocationStrategy.orderSCandidatesForIncomingT(allocatableCandidates, incomingT);
-
-        List<S> updatedS = new ArrayList<>();
-        List<TS> emitted = new ArrayList<>();
-        T updatedT = incomingT;
-        int tsIndex = 0;
-
-        for (S candidate : orderedCandidates) {
-            long tRemaining = remainingT(updatedT);
-            long sRemaining = remainingS(candidate);
-            long allocated = allocationStrategy.allocate(tRemaining, sRemaining);
-
-            if (allocated != 0) {
-                long nextTotal = updatedT.q_a_total() + allocated;
-                LocalDate allocatedSDate = nextTotal == updatedT.q() ? nextSDate(updatedT.sDate(), candidate.bDate()) : updatedT.sDate();
-                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.accId(), updatedT.tt(), updatedT.tDate(), allocatedSDate, updatedT.a_status(), updatedT.cancel(), updatedT.q(), nextTotal, allocated, updatedT.q_f());
-                S nextS = new S(candidate.id(), candidate.pid(), candidate.bDate(), candidate.q(), candidate.q_carry(), candidate.q_a() + allocated, candidate.rollover(), candidate.dir());
-                updatedS.add(nextS);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.accId(), updatedT.tDate(), nextS.bDate(), updatedT.q(), allocated, nextTotal, updatedT.tt()));
-            } else {
-                updatedS.add(candidate);
-            }
-        }
-        updatedS.addAll(untouchedCandidates);
-        validateAllocationOutput(updatedT.pid(), List.of(updatedT), updatedS, emitted);
-        return new AllocationResult(updatedT, updatedS, emitted);
+        AllocationResult result = allocationStrategy.allocateForIncomingT(incomingT, orderedCandidates, untouchedCandidates, idPrefix);
+        validateAllocationOutput(result.updatedIncomingT().pid(), List.of(result.updatedIncomingT()), result.updatedS(), result.emittedTs());
+        return result;
     }
 
     AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
         requireSamePid(candidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
 
-        List<T> updatedT = new ArrayList<>();
-        List<TS> emitted = new ArrayList<>();
-        S updatedS = incomingS;
-        int tsIndex = 0;
-
-        long incomingSOpen = remainingS(updatedS);
+        long incomingSOpen = remainingS(incomingS);
         List<T> allocatableCandidates = candidates.stream()
                 .filter(candidate -> allocationStrategy.areSignCompatible(incomingSOpen, remainingT(candidate)))
                 .toList();
@@ -79,25 +50,9 @@ final class TransitionsLogic {
                 .toList();
         List<T> orderedCandidates = allocationStrategy.orderTCandidatesForIncomingS(allocatableCandidates, incomingS);
 
-        for (T candidate : orderedCandidates) {
-            long sRemaining = remainingS(updatedS);
-            long tRemaining = remainingT(candidate);
-            long allocated = allocationStrategy.allocate(sRemaining, tRemaining);
-
-            if (allocated != 0) {
-                long nextTotal = candidate.q_a_total() + allocated;
-                LocalDate allocatedSDate = nextTotal == candidate.q() ? nextSDate(candidate.sDate(), updatedS.bDate()) : candidate.sDate();
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.accId(), candidate.tt(), candidate.tDate(), allocatedSDate, candidate.a_status(), candidate.cancel(), candidate.q(), nextTotal, allocated, candidate.q_f());
-                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.bDate(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.rollover(), updatedS.dir());
-                updatedT.add(nextT);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.accId(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextTotal, nextT.tt()));
-            } else {
-                updatedT.add(candidate);
-            }
-        }
-        updatedT.addAll(untouchedCandidates);
-        validateAllocationOutput(updatedS.pid(), updatedT, List.of(updatedS), emitted);
-        return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
+        AllocationResult result = allocationStrategy.allocateForIncomingS(orderedCandidates, untouchedCandidates, incomingS, idPrefix);
+        validateAllocationOutput(result.updatedIncomingS().pid(), result.updatedT(), List.of(result.updatedIncomingS()), result.emittedTs());
+        return result;
     }
 
     boolean isOpen(T t) {
@@ -179,9 +134,6 @@ final class TransitionsLogic {
         return total - allocated;
     }
 
-    private static LocalDate nextSDate(LocalDate currentSDate, LocalDate allocationSDate) {
-        return allocationSDate != null ? allocationSDate : currentSDate;
-    }
 
     private static boolean isAllocatedWithinTotal(long total, long allocated) {
         if (allocated == 0L) {
