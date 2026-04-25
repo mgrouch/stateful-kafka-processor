@@ -457,6 +457,38 @@ class TopologyFactoryTest {
         assertThat(Arrays.stream(S.class.getRecordComponents()).map(c -> c.getName())).contains("q_carry");
     }
 
+    @Test
+    void incomingFailedTIsForwardedToFailedTSink() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> failedTOutput = harness.failedTOutput(driver);
+
+            T failedT = new T("t-failed", "AAA", "R-failed", null, null, false, 100L, 0L, 0L, 5L, AStatus.FAIL, TT.B);
+            input.pipeInput("AAA", MessageEnvelope.forT(failedT), t0.toEpochMilli());
+
+            assertThat(failedTOutput.readValue()).isEqualTo(MessageEnvelope.forT(failedT));
+        }
+    }
+
+    @Test
+    void incomingSWithCarryIsForwardedToCarrySink() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> carryOutput = harness.sWithQCarryOutput(driver);
+
+            S withCarry = new S("s-carry", "AAA", 100L, 25L, 0L, false);
+            input.pipeInput("AAA", MessageEnvelope.forS(withCarry), t0.toEpochMilli());
+
+            assertThat(carryOutput.readValue()).isEqualTo(MessageEnvelope.forS(withCarry));
+        }
+    }
+
     private static final class TestHarness {
         private final SerdeFactory serdeFactory;
         private final ProcessorSettings settings;
@@ -482,6 +514,8 @@ class TopologyFactoryTest {
                     "input-events",
                     "processed-events",
                     "db-sync-events",
+                    "failed-t-events",
+                    "s-with-q-carry-events",
                     Files.createTempDirectory("streams-test-state"),
                     100,
                     1,
@@ -525,6 +559,22 @@ class TopologyFactoryTest {
                     settings.dbSyncTopic(),
                     Serdes.String().deserializer(),
                     serdeFactory.dbSyncEnvelopeSerde().deserializer()
+            );
+        }
+
+        private TestOutputTopic<String, MessageEnvelope> failedTOutput(TopologyTestDriver driver) {
+            return driver.createOutputTopic(
+                    settings.failedTTopic(),
+                    Serdes.String().deserializer(),
+                    serdeFactory.envelopeSerde().deserializer()
+            );
+        }
+
+        private TestOutputTopic<String, MessageEnvelope> sWithQCarryOutput(TopologyTestDriver driver) {
+            return driver.createOutputTopic(
+                    settings.sWithQCarryTopic(),
+                    Serdes.String().deserializer(),
+                    serdeFactory.envelopeSerde().deserializer()
             );
         }
     }

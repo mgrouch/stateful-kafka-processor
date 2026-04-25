@@ -51,9 +51,11 @@ class KafkaProcessorIT {
         String inputTopic = "input-events-" + suffix;
         String outputTopic = "processed-events-" + suffix;
         String dbSyncTopic = "db-sync-events-" + suffix;
+        String failedTTopic = "failed-t-events-" + suffix;
+        String sWithQCarryTopic = "s-with-q-carry-events-" + suffix;
         String applicationId = "stateful-it-" + suffix;
 
-        createTopics(inputTopic, outputTopic, dbSyncTopic);
+        createTopics(inputTopic, outputTopic, dbSyncTopic, failedTTopic, sWithQCarryTopic);
 
         try (ConfigurableApplicationContext context = ProcessorApplication.createApplication().run(
                 "--spring.kafka.bootstrap-servers=" + BOOTSTRAP,
@@ -67,6 +69,8 @@ class KafkaProcessorIT {
                 "--app.input-topic=" + inputTopic,
                 "--app.output-topic=" + outputTopic,
                 "--app.db-sync-topic=" + dbSyncTopic,
+                "--app.failed-t-topic=" + failedTTopic,
+                "--app.s-with-q-carry-topic=" + sWithQCarryTopic,
                 "--app.state-dir=" + Files.createTempDirectory("stateful-it-state"),
                 "--app.commit-interval-ms=100",
                 "--app.streams.replication-factor=1"
@@ -110,7 +114,7 @@ class KafkaProcessorIT {
         }
     }
 
-    private static void createTopics(String inputTopic, String outputTopic, String dbSyncTopic) throws Exception {
+    private static void createTopics(String inputTopic, String outputTopic, String dbSyncTopic, String failedTTopic, String sWithQCarryTopic) throws Exception {
         Properties properties = new Properties();
         properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
         putSecurityConfig(properties);
@@ -119,7 +123,9 @@ class KafkaProcessorIT {
             admin.createTopics(List.of(
                     new NewTopic(inputTopic, 3, (short) 1),
                     new NewTopic(outputTopic, 3, (short) 1),
-                    new NewTopic(dbSyncTopic, 3, (short) 1)
+                    new NewTopic(dbSyncTopic, 3, (short) 1),
+                    new NewTopic(failedTTopic, 3, (short) 1),
+                    new NewTopic(sWithQCarryTopic, 3, (short) 1)
             )).all().get();
         } catch (ExecutionException executionException) {
             if (!(executionException.getCause() instanceof TopicExistsException)) {
