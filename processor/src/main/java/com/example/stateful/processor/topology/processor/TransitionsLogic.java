@@ -51,10 +51,11 @@ final class TransitionsLogic {
             long allocated = signedAllocation(tRemaining, sRemaining);
 
             if (allocated != 0) {
-                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.tDate(), updatedT.cancel(), updatedT.q(), updatedT.q_a() + allocated, updatedT.a_status(), updatedT.tt());
+                long nextTotal = updatedT.q_a_total() + allocated;
+                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.tDate(), updatedT.cancel(), updatedT.q(), nextTotal, allocated, updatedT.a_status(), updatedT.tt());
                 S nextS = new S(candidate.id(), candidate.pid(), candidate.bDate(), candidate.q(), candidate.q_carry(), candidate.q_a() + allocated, candidate.rollover(), candidate.dir());
                 updatedS.add(nextS);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.tDate(), nextS.bDate(), updatedT.q(), allocated, updatedT.tt()));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.tDate(), nextS.bDate(), updatedT.q(), allocated, nextTotal, updatedT.tt()));
             } else {
                 updatedS.add(candidate);
             }
@@ -85,9 +86,9 @@ final class TransitionsLogic {
                 continue;
             }
 
-            T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), candidate.cancel(), candidate.q(), candidate.q(), candidate.a_status(), candidate.tt());
+            T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), candidate.cancel(), candidate.q(), candidate.q(), remaining, candidate.a_status(), candidate.tt());
             updatedT.add(nextT);
-            emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.id(), incomingS.id(), nextT.tDate(), incomingS.bDate(), nextT.q(), remaining, nextT.tt()));
+            emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.id(), incomingS.id(), nextT.tDate(), incomingS.bDate(), nextT.q(), remaining, nextT.q_a_total(), nextT.tt()));
         }
 
         long incomingSOpen = remainingS(updatedS);
@@ -109,10 +110,11 @@ final class TransitionsLogic {
             long allocated = signedAllocation(sRemaining, tRemaining);
 
             if (allocated != 0) {
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), candidate.cancel(), candidate.q(), candidate.q_a() + allocated, candidate.a_status(), candidate.tt());
+                long nextTotal = candidate.q_a_total() + allocated;
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), candidate.cancel(), candidate.q(), nextTotal, allocated, candidate.a_status(), candidate.tt());
                 updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.bDate(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.rollover(), updatedS.dir());
                 updatedT.add(nextT);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextT.tt()));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextTotal, nextT.tt()));
             } else {
                 updatedT.add(candidate);
             }
@@ -203,7 +205,7 @@ final class TransitionsLogic {
             if (!pid.equals(t.pid())) {
                 throw new IllegalStateException("allocate output has T with different pid");
             }
-            if (!isAllocatedWithinTotal(t.q(), t.q_a())) {
+            if (!isAllocatedWithinTotal(t.q(), t.q_a_total())) {
                 throw new IllegalStateException("allocate output has T q_a outside signed bounds of q");
             }
             allowedTid.add(t.id());
@@ -229,14 +231,17 @@ final class TransitionsLogic {
             if (!allowedSid.contains(ts.sid())) {
                 throw new IllegalStateException("allocate output references unknown TS.sid " + ts.sid());
             }
-            if (ts.q_a() == 0) {
-                throw new IllegalStateException("allocate output has TS.q_a == 0");
+            if (ts.q_a_delta() == 0) {
+                throw new IllegalStateException("allocate output has TS.q_a_delta == 0");
             }
-            long allocatedForTid = allocatedByTid.getOrDefault(ts.tid(), 0L) + ts.q_a();
+            long allocatedForTid = allocatedByTid.getOrDefault(ts.tid(), 0L) + ts.q_a_delta();
             allocatedByTid.put(ts.tid(), allocatedForTid);
             long sourceQ = tQuantityById.get(ts.tid());
             if (!isAllocatedWithinTotal(sourceQ, allocatedForTid)) {
                 throw new IllegalStateException("allocate output over-allocates T id " + ts.tid());
+            }
+            if (!isAllocatedWithinTotal(sourceQ, ts.q_a_total_after())) {
+                throw new IllegalStateException("allocate output has TS.q_a_total_after outside signed bounds of q");
             }
         }
     }
@@ -250,7 +255,7 @@ final class TransitionsLogic {
     }
 
     private static long remainingT(T t) {
-        return signedRemaining(t.q(), t.q_a());
+        return signedRemaining(t.q(), t.q_a_total());
     }
 
     private static long remainingS(S s) {

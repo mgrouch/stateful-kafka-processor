@@ -80,8 +80,9 @@ public final class DbSyncRepository {
                 statement.setString(3, event.t().ref());
                 statement.setBoolean(4, event.t().cancel());
                 statement.setLong(5, event.t().q());
-                statement.setLong(6, event.t().q_a());
-                setSource(statement, event, 7);
+                statement.setLong(6, event.t().q_a_total());
+                statement.setLong(7, event.t().q_a_delta_last());
+                setSource(statement, event, 8);
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -104,8 +105,9 @@ public final class DbSyncRepository {
                 statement.setString(3, event.ts().tid());
                 statement.setString(4, event.ts().sid());
                 statement.setLong(5, event.ts().q());
-                statement.setLong(6, event.ts().q_a());
-                setSource(statement, event, 7);
+                statement.setLong(6, event.ts().q_a_delta());
+                statement.setLong(7, event.ts().q_a_total_after());
+                setSource(statement, event, 8);
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -117,8 +119,9 @@ public final class DbSyncRepository {
                 statement.setString(3, event.t().ref());
                 statement.setBoolean(4, event.t().cancel());
                 statement.setLong(5, event.t().q());
-                statement.setLong(6, event.t().q_a());
-                setSource(statement, event, 7);
+                statement.setLong(6, event.t().q_a_total());
+                statement.setLong(7, event.t().q_a_delta_last());
+                setSource(statement, event, 8);
                 statement.addBatch();
             }
             statement.executeBatch();

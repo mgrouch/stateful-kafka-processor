@@ -1,23 +1,38 @@
 package com.example.stateful.domain;
 
-import java.util.Objects;
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 import java.time.LocalDate;
+import java.util.Objects;
 
-public record T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a, AStatus a_status, TT tt) {
-    public T(String id, String pid, String ref, boolean cancel, long q, long q_a) {
-        this(id, pid, ref, null, cancel, q, q_a, AStatus.NORMAL, TT.B);
+public record T(String id,
+                String pid,
+                String ref,
+                LocalDate tDate,
+                boolean cancel,
+                long q,
+                @JsonAlias("q_a") long q_a_total,
+                long q_a_delta_last,
+                AStatus a_status,
+                TT tt) {
+    public T(String id, String pid, String ref, boolean cancel, long q, long q_a_total) {
+        this(id, pid, ref, null, cancel, q, q_a_total, 0L, AStatus.NORMAL, TT.B);
     }
 
-    public T(String id, String pid, String ref, boolean cancel, long q, long q_a, AStatus a_status) {
-        this(id, pid, ref, null, cancel, q, q_a, a_status, TT.B);
+    public T(String id, String pid, String ref, boolean cancel, long q, long q_a_total, AStatus a_status) {
+        this(id, pid, ref, null, cancel, q, q_a_total, 0L, a_status, TT.B);
     }
 
-    public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a) {
-        this(id, pid, ref, tDate, cancel, q, q_a, AStatus.NORMAL, TT.B);
+    public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total) {
+        this(id, pid, ref, tDate, cancel, q, q_a_total, 0L, AStatus.NORMAL, TT.B);
     }
 
-    public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a, AStatus a_status) {
-        this(id, pid, ref, tDate, cancel, q, q_a, a_status, TT.B);
+    public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total, AStatus a_status) {
+        this(id, pid, ref, tDate, cancel, q, q_a_total, 0L, a_status, TT.B);
+    }
+
+    public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total, AStatus a_status, TT tt) {
+        this(id, pid, ref, tDate, cancel, q, q_a_total, 0L, a_status, tt);
     }
 
     public T {
@@ -42,11 +57,17 @@ public record T(String id, String pid, String ref, LocalDate tDate, boolean canc
                 }
             }
         }
-        if (Long.signum(q_a) != 0 && Long.signum(q_a) != Long.signum(q)) {
-            throw new IllegalArgumentException("q_a must have same sign as q");
+        if (Long.signum(q_a_total) != 0 && Long.signum(q_a_total) != Long.signum(q)) {
+            throw new IllegalArgumentException("q_a_total must have same sign as q");
         }
-        if (Math.abs(q_a) > Math.abs(q)) {
-            throw new IllegalArgumentException("q_a must satisfy abs(q_a) <= abs(q)");
+        if (Math.abs(q_a_total) > Math.abs(q)) {
+            throw new IllegalArgumentException("q_a_total must satisfy abs(q_a_total) <= abs(q)");
+        }
+        if (q_a_delta_last != 0L && Long.signum(q_a_delta_last) != Long.signum(q)) {
+            throw new IllegalArgumentException("q_a_delta_last must have same sign as q");
+        }
+        if (Math.abs(q_a_delta_last) > Math.abs(q)) {
+            throw new IllegalArgumentException("q_a_delta_last must satisfy abs(q_a_delta_last) <= abs(q)");
         }
     }
 
