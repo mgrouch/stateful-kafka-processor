@@ -1,8 +1,9 @@
-package com.example.stateful.processor.processor;
+package com.example.stateful.processor.logic;
 
 import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
+import com.example.stateful.processor.processor.AllocationStrategy;
 
 import java.util.ArrayList;
 import java.util.Collections;

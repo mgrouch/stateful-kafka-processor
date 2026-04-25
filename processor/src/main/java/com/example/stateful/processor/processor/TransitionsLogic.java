@@ -3,6 +3,8 @@ package com.example.stateful.processor.processor;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
+import com.example.stateful.processor.logic.AllocationResult;
+import com.example.stateful.processor.logic.SignedSupplyUsage;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -11,15 +13,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-final class TransitionsLogic {
+public final class TransitionsLogic {
 
     private final AllocationStrategy allocationStrategy;
 
-    TransitionsLogic(AllocationStrategy allocationStrategy) {
+    public TransitionsLogic(AllocationStrategy allocationStrategy) {
         this.allocationStrategy = Objects.requireNonNull(allocationStrategy, "allocationStrategy must not be null");
     }
 
-    AllocationResult allocateForIncomingT(T incomingT, List<S> candidates, String idPrefix) {
+    public AllocationResult allocateForIncomingT(T incomingT, List<S> candidates, String idPrefix) {
         requireSamePid(candidates.stream().map(S::pid).toList(), incomingT.pid(), "S candidate");
         long incomingTOpen = remainingT(incomingT);
         List<S> allocatableCandidates = candidates.stream()
@@ -34,7 +36,7 @@ final class TransitionsLogic {
         return result;
     }
 
-    AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
+    public AllocationResult allocateForIncomingS(List<T> candidates, S incomingS, String idPrefix) {
         requireSamePid(candidates.stream().map(T::pid).toList(), incomingS.pid(), "T candidate");
 
         long incomingSOpen = remainingS(incomingS);
@@ -51,11 +53,11 @@ final class TransitionsLogic {
         return result;
     }
 
-    boolean isOpen(T t) {
+    public boolean isOpen(T t) {
         return remainingT(t) != 0;
     }
 
-    boolean isOpen(S s) {
+    public boolean isOpen(S s) {
         return remainingS(s) != 0;
     }
 
@@ -109,7 +111,7 @@ final class TransitionsLogic {
         }
     }
 
-    private static void requireSamePid(List<String> pids, String expectedPid, String entityName) {
+    public static void requireSamePid(List<String> pids, String expectedPid, String entityName) {
         for (String pid : pids) {
             if (!expectedPid.equals(pid)) {
                 throw new IllegalArgumentException(entityName + " pid mismatch");
@@ -117,21 +119,21 @@ final class TransitionsLogic {
         }
     }
 
-    private static long remainingT(T t) {
+    public static long remainingT(T t) {
         return signedRemaining(t.q(), t.q_a_total());
     }
 
-    private static long remainingS(S s) {
+    public static long remainingS(S s) {
         SignedSupplyUsage usage = SignedSupplyUsage.supplyUsage(s);
         return usage.remainingCarry() + usage.remainingRegular();
     }
 
-    private static long signedRemaining(long total, long allocated) {
+    public static long signedRemaining(long total, long allocated) {
         return total - allocated;
     }
 
 
-    private static boolean isAllocatedWithinTotal(long total, long allocated) {
+    public static boolean isAllocatedWithinTotal(long total, long allocated) {
         if (allocated == 0L) {
             return true;
         }

@@ -1,4 +1,4 @@
-package com.example.stateful.processor.processor;
+package com.example.stateful.processor.logic;
 
 import com.example.stateful.domain.S;
 
