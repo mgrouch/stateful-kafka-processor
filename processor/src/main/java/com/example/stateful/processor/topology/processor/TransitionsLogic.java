@@ -5,6 +5,7 @@ import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -20,7 +21,7 @@ final class TransitionsLogic {
 
     private static final String LOTTERY_INCOMING_S = "INCOMING_S";
     private static final String LOTTERY_FAIL_BUCKET = "FAIL";
-    private static final String LOTTERY_NORMAL_BUCKET = "NORMAL";
+    private static final String LOTTERY_NORM_BUCKET = "NORM";
 
     private final long allocationLotterySeed;
 
@@ -52,10 +53,11 @@ final class TransitionsLogic {
 
             if (allocated != 0) {
                 long nextTotal = updatedT.q_a_total() + allocated;
-                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.tDate(), updatedT.cancel(), updatedT.q(), nextTotal, allocated, updatedT.a_status(), updatedT.tt());
+                LocalDate allocatedSDate = nextTotal == updatedT.q() ? nextSDate(updatedT.sDate(), candidate.bDate()) : updatedT.sDate();
+                updatedT = new T(updatedT.id(), updatedT.pid(), updatedT.ref(), updatedT.tDate(), allocatedSDate, updatedT.cancel(), updatedT.q(), nextTotal, allocated, updatedT.q_f(), updatedT.a_status(), updatedT.accId(), updatedT.tt());
                 S nextS = new S(candidate.id(), candidate.pid(), candidate.bDate(), candidate.q(), candidate.q_carry(), candidate.q_a() + allocated, candidate.rollover(), candidate.dir());
                 updatedS.add(nextS);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.tDate(), nextS.bDate(), updatedT.q(), allocated, nextTotal, updatedT.tt()));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.id(), nextS.id(), updatedT.accId(), updatedT.tDate(), nextS.bDate(), updatedT.q(), allocated, nextTotal, updatedT.tt()));
             } else {
                 updatedS.add(candidate);
             }
@@ -86,9 +88,10 @@ final class TransitionsLogic {
                 continue;
             }
 
-            T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), candidate.cancel(), candidate.q(), candidate.q(), remaining, candidate.a_status(), candidate.tt());
+            LocalDate allocatedSDate = nextSDate(candidate.sDate(), incomingS.bDate());
+            T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), allocatedSDate, candidate.cancel(), candidate.q(), candidate.q(), remaining, candidate.q_f(), candidate.a_status(), candidate.accId(), candidate.tt());
             updatedT.add(nextT);
-            emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.id(), incomingS.id(), nextT.tDate(), incomingS.bDate(), nextT.q(), remaining, nextT.q_a_total(), nextT.tt()));
+            emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.id(), incomingS.id(), nextT.accId(), nextT.tDate(), incomingS.bDate(), nextT.q(), remaining, nextT.q_a_total(), nextT.tt()));
         }
 
         long incomingSOpen = remainingS(updatedS);
@@ -111,10 +114,11 @@ final class TransitionsLogic {
 
             if (allocated != 0) {
                 long nextTotal = candidate.q_a_total() + allocated;
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), candidate.cancel(), candidate.q(), nextTotal, allocated, candidate.a_status(), candidate.tt());
+                LocalDate allocatedSDate = nextTotal == candidate.q() ? nextSDate(candidate.sDate(), updatedS.bDate()) : candidate.sDate();
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.tDate(), allocatedSDate, candidate.cancel(), candidate.q(), nextTotal, allocated, candidate.q_f(), candidate.a_status(), candidate.accId(), candidate.tt());
                 updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.bDate(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.rollover(), updatedS.dir());
                 updatedT.add(nextT);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextTotal, nextT.tt()));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.accId(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextTotal, nextT.tt()));
             } else {
                 updatedT.add(candidate);
             }
@@ -155,7 +159,7 @@ final class TransitionsLogic {
 
         List<T> ordered = new ArrayList<>(candidates.size());
         ordered.addAll(shuffleDeterministically(fail, pid, incomingId, LOTTERY_INCOMING_S, LOTTERY_FAIL_BUCKET));
-        ordered.addAll(shuffleDeterministically(normal, pid, incomingId, LOTTERY_INCOMING_S, LOTTERY_NORMAL_BUCKET));
+        ordered.addAll(shuffleDeterministically(normal, pid, incomingId, LOTTERY_INCOMING_S, LOTTERY_NORM_BUCKET));
         return ordered;
     }
 
@@ -175,7 +179,7 @@ final class TransitionsLogic {
         for (T candidate : orderedCandidates) {
             if (candidate.a_status() == AStatus.FAIL) {
                 if (seenNormal) {
-                    throw new IllegalStateException("FAIL T must be ordered before NORMAL T");
+                    throw new IllegalStateException("FAIL T must be ordered before NORM T");
                 }
             } else {
                 seenNormal = true;
@@ -265,6 +269,10 @@ final class TransitionsLogic {
 
     private static long signedRemaining(long total, long allocated) {
         return total - allocated;
+    }
+
+    private static LocalDate nextSDate(LocalDate currentSDate, LocalDate allocationSDate) {
+        return allocationSDate != null ? allocationSDate : currentSDate;
     }
 
     private static boolean areSignCompatible(long lhs, long rhs) {
