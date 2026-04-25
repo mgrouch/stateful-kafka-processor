@@ -11,6 +11,7 @@ import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.state.TBucket;
+import com.example.stateful.processor.topology.processor.AllocationStrategy;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.serialization.Serdes;
@@ -283,6 +284,29 @@ class TopologyFactoryTest {
         }
     }
 
+    @Test
+    void customAllocationStrategyCanBePluggedIn() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0, new AllocationStrategy() {
+            @Override
+            public long allocate(long targetOpen, long sourceOpen) {
+                return 0L;
+            }
+        })) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 50L, 0L)), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 50L, 0L)), t0.plusMillis(1).toEpochMilli());
+
+            assertThat(output.isEmpty()).isTrue();
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).hasSize(1);
+            assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items()).hasSize(1);
+        }
+    }
+
 
     @Test
     void incomingRDirectionSDoesNotForceCloseNegativeT() throws Exception {
@@ -414,7 +438,11 @@ class TopologyFactoryTest {
         }
 
         private TopologyTestDriver driver(Instant t0) {
-            Topology topology = TopologyFactory.create(settings, serdeFactory);
+            return driver(t0, new AllocationStrategy());
+        }
+
+        private TopologyTestDriver driver(Instant t0, AllocationStrategy allocationStrategy) {
+            Topology topology = TopologyFactory.create(settings, serdeFactory, allocationStrategy);
             Properties properties = settings.toStreamsProperties();
             properties.put("bootstrap.servers", "dummy:9092");
             return new TopologyTestDriver(topology, properties, t0);

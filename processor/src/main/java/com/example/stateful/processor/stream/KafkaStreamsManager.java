@@ -5,6 +5,7 @@ import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.state.TBucket;
+import com.example.stateful.processor.topology.processor.AllocationStrategy;
 import com.example.stateful.processor.topology.TopologyFactory;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StoreQueryParameters;
@@ -31,8 +32,12 @@ public final class KafkaStreamsManager implements SmartLifecycle {
     private volatile boolean running;
 
     public KafkaStreamsManager(ProcessorSettings settings, SerdeFactory serdeFactory) {
+        this(settings, serdeFactory, new AllocationStrategy());
+    }
+
+    public KafkaStreamsManager(ProcessorSettings settings, SerdeFactory serdeFactory, AllocationStrategy allocationStrategy) {
         this.settings = settings;
-        this.topology = TopologyFactory.create(settings, serdeFactory);
+        this.topology = TopologyFactory.create(settings, serdeFactory, allocationStrategy);
         this.kafkaStreams = new KafkaStreams(topology, settings.toStreamsProperties());
         this.kafkaStreams.setStateListener((newState, oldState) ->
                 log.info("Kafka Streams state changed from {} to {}", oldState, newState));

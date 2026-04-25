@@ -3,6 +3,7 @@ package com.example.stateful.processor.app;
 import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.stream.KafkaStreamsManager;
+import com.example.stateful.processor.topology.processor.AllocationStrategy;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -49,9 +50,11 @@ public final class ProcessorApplication {
         });
         context.registerBean(ProcessorSettings.class, () -> ProcessorSettings.from(context.getEnvironment()));
         context.registerBean(SerdeFactory.class, () -> new SerdeFactory(context.getBean(ObjectMapper.class)));
+        context.registerBean(AllocationStrategy.class, AllocationStrategy::new);
         context.registerBean(KafkaStreamsManager.class, () -> new KafkaStreamsManager(
                 context.getBean(ProcessorSettings.class),
-                context.getBean(SerdeFactory.class)
+                context.getBean(SerdeFactory.class),
+                context.getBean(AllocationStrategy.class)
         ));
     }
 

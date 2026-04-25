@@ -24,9 +24,15 @@ final class TransitionsLogic {
     private static final String LOTTERY_NORM_BUCKET = "NORM";
 
     private final long allocationLotterySeed;
+    private final AllocationStrategy allocationStrategy;
 
     TransitionsLogic(long allocationLotterySeed) {
+        this(allocationLotterySeed, new AllocationStrategy());
+    }
+
+    TransitionsLogic(long allocationLotterySeed, AllocationStrategy allocationStrategy) {
         this.allocationLotterySeed = allocationLotterySeed;
+        this.allocationStrategy = Objects.requireNonNull(allocationStrategy, "allocationStrategy must not be null");
     }
 
     AllocationResult allocateForIncomingT(T incomingT, List<S> candidates, String idPrefix) {
@@ -49,7 +55,7 @@ final class TransitionsLogic {
         for (S candidate : orderedCandidates) {
             long tRemaining = remainingT(updatedT);
             long sRemaining = remainingS(candidate);
-            long allocated = signedAllocation(tRemaining, sRemaining);
+            long allocated = allocationStrategy.allocate(tRemaining, sRemaining);
 
             if (allocated != 0) {
                 long nextTotal = updatedT.q_a_total() + allocated;
@@ -89,7 +95,7 @@ final class TransitionsLogic {
         for (T candidate : orderedCandidates) {
             long sRemaining = remainingS(updatedS);
             long tRemaining = remainingT(candidate);
-            long allocated = signedAllocation(sRemaining, tRemaining);
+            long allocated = allocationStrategy.allocate(sRemaining, tRemaining);
 
             if (allocated != 0) {
                 long nextTotal = candidate.q_a_total() + allocated;
@@ -249,14 +255,6 @@ final class TransitionsLogic {
 
     private static boolean areSignCompatible(long lhs, long rhs) {
         return lhs != 0 && rhs != 0 && Long.signum(lhs) == Long.signum(rhs);
-    }
-
-    private static long signedAllocation(long targetOpen, long sourceOpen) {
-        if (!areSignCompatible(targetOpen, sourceOpen)) {
-            return 0L;
-        }
-        long magnitude = Math.min(Math.abs(targetOpen), Math.abs(sourceOpen));
-        return Long.signum(targetOpen) * magnitude;
     }
 
     private static boolean isAllocatedWithinTotal(long total, long allocated) {

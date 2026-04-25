@@ -5,6 +5,7 @@ import com.example.stateful.messaging.MessageEnvelope;
 import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.StateStores;
+import com.example.stateful.processor.topology.processor.AllocationStrategy;
 import com.example.stateful.processor.topology.processor.StatefulEnvelopeProcessor;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
@@ -28,6 +29,10 @@ public final class TopologyFactory {
     }
 
     public static Topology create(ProcessorSettings settings, SerdeFactory serdeFactory) {
+        return create(settings, serdeFactory, new AllocationStrategy());
+    }
+
+    public static Topology create(ProcessorSettings settings, SerdeFactory serdeFactory, AllocationStrategy allocationStrategy) {
         Topology topology = new Topology();
 
         Serde<String> stringSerde = serdeFactory.stringSerde();
@@ -42,7 +47,7 @@ public final class TopologyFactory {
         );
 
         ProcessorSupplier<String, MessageEnvelope, String, Object> supplier =
-                () -> new StatefulEnvelopeProcessor(settings.allocationLotterySeed());
+                () -> new StatefulEnvelopeProcessor(settings.allocationLotterySeed(), allocationStrategy);
         topology.addProcessor(PROCESSOR, supplier, SOURCE);
 
         KeyValueBytesStoreSupplier tStoreSupplier = Stores.persistentKeyValueStore(StateStores.UNPROCESSED_T_STORE);
