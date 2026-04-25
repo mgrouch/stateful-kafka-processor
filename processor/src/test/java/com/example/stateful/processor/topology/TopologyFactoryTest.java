@@ -285,7 +285,7 @@ class TopologyFactoryTest {
 
 
     @Test
-    void incomingRDirectionSFullyAllocatesNegativeTAndEmitsTs() throws Exception {
+    void incomingRDirectionSDoesNotForceCloseNegativeT() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -298,11 +298,11 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-r", "AAA", 5L, 0L)), t0.plusMillis(2).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
-            assertThat(emitted).hasSize(2);
-            assertThat(emitted).extracting(v -> v.ts().tid()).containsExactly("t-neg-2", "t-neg-1");
-            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactly(-15L, -15L);
+            assertThat(emitted).isEmpty();
 
-            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
+            List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items();
+            assertThat(openT).hasSize(2);
+            assertThat(openT).extracting(T::id).containsExactly("t-neg-1", "t-neg-2");
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0);
             assertThat(openS.id()).isEqualTo("s-r");
             assertThat(openS.q_a()).isZero();
@@ -310,7 +310,7 @@ class TopologyFactoryTest {
     }
 
     @Test
-    void incomingDDirectionSFullyAllocatesPositiveTAndEmitsTs() throws Exception {
+    void incomingDDirectionSDoesNotForceClosePositiveT() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -323,11 +323,11 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-d", "AAA", -5L, 0L)), t0.plusMillis(2).toEpochMilli());
 
             List<MessageEnvelope> emitted = output.readValuesToList();
-            assertThat(emitted).hasSize(2);
-            assertThat(emitted).extracting(v -> v.ts().tid()).containsExactlyInAnyOrder("t-pos-1", "t-pos-2");
-            assertThat(emitted).extracting(v -> v.ts().q_a_delta()).containsExactlyInAnyOrder(30L, 30L);
+            assertThat(emitted).isEmpty();
 
-            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
+            List<T> openT = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items();
+            assertThat(openT).hasSize(2);
+            assertThat(openT).extracting(T::id).containsExactly("t-pos-1", "t-pos-2");
             S openS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0);
             assertThat(openS.id()).isEqualTo("s-d");
             assertThat(openS.q_a()).isZero();
