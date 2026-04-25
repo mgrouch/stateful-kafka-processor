@@ -11,7 +11,7 @@ import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.state.TBucket;
-import com.example.stateful.processor.processor.AllocationStrategy;
+import com.example.stateful.processor.logic.AllocationStrategy;
 import com.example.stateful.processor.logic.NaiveAlocationStrategy;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;

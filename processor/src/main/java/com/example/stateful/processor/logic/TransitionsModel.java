@@ -1,10 +1,8 @@
-package com.example.stateful.processor.processor;
+package com.example.stateful.processor.logic;
 
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
-import com.example.stateful.processor.logic.AllocationResult;
-import com.example.stateful.processor.logic.SignedSupplyUsage;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,11 +11,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class TransitionsLogic {
+public final class TransitionsModel {
 
     private final AllocationStrategy allocationStrategy;
 
-    public TransitionsLogic(AllocationStrategy allocationStrategy) {
+    public TransitionsModel(AllocationStrategy allocationStrategy) {
         this.allocationStrategy = Objects.requireNonNull(allocationStrategy, "allocationStrategy must not be null");
     }
 
@@ -59,6 +57,38 @@ public final class TransitionsLogic {
 
     public boolean isOpen(S s) {
         return remainingS(s) != 0;
+    }
+
+    public static void requireSamePid(List<String> pids, String expectedPid, String entityName) {
+        for (String pid : pids) {
+            if (!expectedPid.equals(pid)) {
+                throw new IllegalArgumentException(entityName + " pid mismatch");
+            }
+        }
+    }
+
+    public static long remainingT(T t) {
+        return signedRemaining(t.q(), t.q_a_total());
+    }
+
+    public static long remainingS(S s) {
+        SignedSupplyUsage usage = SignedSupplyUsage.supplyUsage(s);
+        return usage.remainingCarry() + usage.remainingRegular();
+    }
+
+    public static long signedRemaining(long total, long allocated) {
+        return total - allocated;
+    }
+
+
+    public static boolean isAllocatedWithinTotal(long total, long allocated) {
+        if (allocated == 0L) {
+            return true;
+        }
+        if (total == 0L || Long.signum(total) != Long.signum(allocated)) {
+            return false;
+        }
+        return Math.abs(allocated) <= Math.abs(total);
     }
 
     private void validateAllocationOutput(String pid, List<T> allowedT, List<S> allowedS, List<TS> emittedTs) {
@@ -109,37 +139,5 @@ public final class TransitionsLogic {
                 throw new IllegalStateException("allocate output has TS.q_a_total_after outside signed bounds of q");
             }
         }
-    }
-
-    public static void requireSamePid(List<String> pids, String expectedPid, String entityName) {
-        for (String pid : pids) {
-            if (!expectedPid.equals(pid)) {
-                throw new IllegalArgumentException(entityName + " pid mismatch");
-            }
-        }
-    }
-
-    public static long remainingT(T t) {
-        return signedRemaining(t.q(), t.q_a_total());
-    }
-
-    public static long remainingS(S s) {
-        SignedSupplyUsage usage = SignedSupplyUsage.supplyUsage(s);
-        return usage.remainingCarry() + usage.remainingRegular();
-    }
-
-    public static long signedRemaining(long total, long allocated) {
-        return total - allocated;
-    }
-
-
-    public static boolean isAllocatedWithinTotal(long total, long allocated) {
-        if (allocated == 0L) {
-            return true;
-        }
-        if (total == 0L || Long.signum(total) != Long.signum(allocated)) {
-            return false;
-        }
-        return Math.abs(allocated) <= Math.abs(total);
     }
 }

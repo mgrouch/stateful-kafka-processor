@@ -3,7 +3,7 @@ package com.example.stateful.processor.app;
 import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.stream.KafkaStreamsManager;
-import com.example.stateful.processor.processor.AllocationStrategy;
+import com.example.stateful.processor.logic.AllocationStrategy;
 import com.example.stateful.processor.logic.NaiveAlocationStrategy;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;

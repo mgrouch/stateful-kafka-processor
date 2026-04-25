@@ -1,10 +1,8 @@
-package com.example.stateful.processor.processor;
+package com.example.stateful.processor.logic;
 
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
-import com.example.stateful.processor.logic.AllocationResult;
-import com.example.stateful.processor.logic.SignedSupplyUsage;
 
 import java.time.LocalDate;
 import java.util.ArrayList;

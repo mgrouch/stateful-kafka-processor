@@ -5,7 +5,7 @@ import com.example.stateful.messaging.MessageEnvelope;
 import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.StateStores;
-import com.example.stateful.processor.processor.AllocationStrategy;
+import com.example.stateful.processor.logic.AllocationStrategy;
 import com.example.stateful.processor.logic.NaiveAlocationStrategy;
 import com.example.stateful.processor.processor.StatefulEnvelopeProcessor;
 import org.apache.kafka.common.serialization.Serde;

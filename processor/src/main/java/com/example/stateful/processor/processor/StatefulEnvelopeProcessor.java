@@ -7,6 +7,8 @@ import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.DbSyncMutationType;
 import com.example.stateful.messaging.MessageEnvelope;
 import com.example.stateful.processor.logic.AllocationResult;
+import com.example.stateful.processor.logic.AllocationStrategy;
+import com.example.stateful.processor.logic.TransitionsModel;
 import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
 import com.example.stateful.processor.state.TBucket;
@@ -35,14 +37,14 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     static final long DEDUPE_WINDOW_MILLIS = Duration.ofDays(14).toMillis();
     private static final Duration DEDUPE_CLEANUP_INTERVAL = Duration.ofHours(1);
-    private final TransitionsLogic transitionsLogic;
+    private final TransitionsModel transitionsLogic;
 
     private KeyValueStore<String, TBucket> tStore;
     private KeyValueStore<String, SBucket> sStore;
     private KeyValueStore<String, Long> tDedupeStore;
 
     public StatefulEnvelopeProcessor(AllocationStrategy allocationStrategy) {
-        this.transitionsLogic = new TransitionsLogic(allocationStrategy);
+        this.transitionsLogic = new TransitionsModel(allocationStrategy);
     }
 
     @Override
