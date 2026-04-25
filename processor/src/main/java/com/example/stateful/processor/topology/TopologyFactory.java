@@ -12,6 +12,7 @@ import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.TopologyDescription;
 import org.apache.kafka.streams.processor.api.ProcessorSupplier;
 import org.apache.kafka.streams.state.KeyValueBytesStoreSupplier;
+import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.Stores;
 
 import java.util.Map;
@@ -48,19 +49,17 @@ public final class TopologyFactory {
         KeyValueBytesStoreSupplier sStoreSupplier = Stores.persistentKeyValueStore(StateStores.UNPROCESSED_S_STORE);
         KeyValueBytesStoreSupplier dedupeStoreSupplier = Stores.persistentKeyValueStore(StateStores.T_DEDUPE_STORE);
 
+        // Keep changelog topics enabled for all state stores to preserve state recovery guarantees.
         topology.addStateStore(
-                Stores.keyValueStoreBuilder(tStoreSupplier, stringSerde, serdeFactory.tBucketSerde())
-                        .withLoggingEnabled(Map.of()),
+                loggedStore(Stores.keyValueStoreBuilder(tStoreSupplier, stringSerde, serdeFactory.tBucketSerde())),
                 PROCESSOR
         );
         topology.addStateStore(
-                Stores.keyValueStoreBuilder(sStoreSupplier, stringSerde, serdeFactory.sBucketSerde())
-                        .withLoggingEnabled(Map.of()),
+                loggedStore(Stores.keyValueStoreBuilder(sStoreSupplier, stringSerde, serdeFactory.sBucketSerde())),
                 PROCESSOR
         );
         topology.addStateStore(
-                Stores.keyValueStoreBuilder(dedupeStoreSupplier, stringSerde, Serdes.Long())
-                        .withLoggingEnabled(Map.of()),
+                loggedStore(Stores.keyValueStoreBuilder(dedupeStoreSupplier, stringSerde, Serdes.Long())),
                 PROCESSOR
         );
 
@@ -86,5 +85,9 @@ public final class TopologyFactory {
     public static String describe(Topology topology) {
         TopologyDescription description = topology.describe();
         return description.toString();
+    }
+
+    private static StoreBuilder<?> loggedStore(StoreBuilder<?> storeBuilder) {
+        return storeBuilder.withLoggingEnabled(Map.of());
     }
 }
