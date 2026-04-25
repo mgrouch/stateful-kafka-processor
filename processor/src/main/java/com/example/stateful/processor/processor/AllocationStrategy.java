@@ -1,4 +1,4 @@
-package com.example.stateful.processor.topology.processor;
+package com.example.stateful.processor.processor;
 
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
