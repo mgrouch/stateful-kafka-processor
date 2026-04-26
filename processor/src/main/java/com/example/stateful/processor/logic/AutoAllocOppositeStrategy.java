@@ -1,6 +1,5 @@
 package com.example.stateful.processor.logic;
 
-import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
@@ -19,9 +18,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
 
     private static final String LOTTERY_INCOMING_S = "INCOMING_S";
     private static final String LOTTERY_PARTIAL_FAIL_S_BUCKET = "PARTIAL_FAIL_S";
-    private static final String LOTTERY_PARTIAL_FAIL_B_BUCKET = "PARTIAL_FAIL_B";
-    private static final String LOTTERY_PARTIAL_FAIL_SS_BUCKET = "PARTIAL_FAIL_SS";
-    private static final String LOTTERY_PARTIAL_FAIL_CS_BUCKET = "PARTIAL_FAIL_CS";
+    private static final String LOTTERY_PARTIAL_FAIL_NON_S_BUCKET = "PARTIAL_FAIL_NON_S";
     private static final String LOTTERY_FULL_FAIL_S_BUCKET = "FULL_FAIL_S";
     private static final String LOTTERY_FULL_FAIL_NON_S_BUCKET = "FULL_FAIL_NON_S";
     private static final String LOTTERY_PARTIAL_ALLOC_S_BUCKET = "PARTIAL_ALLOC_S";
@@ -62,20 +59,10 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                         .filter(this::isPartiallyFailedS)
                         .toList(),
                 incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_S_BUCKET));
-
         ordered.addAll(shuffleDeterministically(canonical.stream()
-                        .filter(this::isPartiallyFailedB)
+                        .filter(this::isPartiallyFailedNonS)
                         .toList(),
-                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_B_BUCKET));
-        ordered.addAll(shuffleDeterministically(canonical.stream()
-                        .filter(this::isPartiallyFailedSS)
-                        .toList(),
-                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_SS_BUCKET));
-        ordered.addAll(shuffleDeterministically(canonical.stream()
-                        .filter(this::isPartiallyFailedCS)
-                        .toList(),
-                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_CS_BUCKET));
-
+                incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_PARTIAL_FAIL_NON_S_BUCKET));
         ordered.addAll(shuffleDeterministically(canonical.stream()
                         .filter(this::isFullyFailedS)
                         .toList(),
@@ -220,16 +207,8 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() == TT.S;
     }
 
-    private boolean isPartiallyFailedB(T candidate) {
-        return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() == TT.B;
-    }
-
-    private boolean isPartiallyFailedSS(T candidate) {
-        return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() == TT.SS;
-    }
-
-    private boolean isPartiallyFailedCS(T candidate) {
-        return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() == TT.CS;
+    private boolean isPartiallyFailedNonS(T candidate) {
+        return candidate.q_a_total() != 0L && candidate.q_f() != 0L && candidate.tt() != TT.S;
     }
 
     private boolean isFullyFailedS(T candidate) {
@@ -254,9 +233,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
 
     private boolean isOtherOpenTrade(T candidate) {
         return !isPartiallyFailedS(candidate)
-                && !isPartiallyFailedB(candidate)
-                && !isPartiallyFailedSS(candidate)
-                && !isPartiallyFailedCS(candidate)
+                && !isPartiallyFailedNonS(candidate)
                 && !isFullyFailedS(candidate)
                 && !isFullyFailedNonS(candidate)
                 && !isPartiallyAllocatedS(candidate)
