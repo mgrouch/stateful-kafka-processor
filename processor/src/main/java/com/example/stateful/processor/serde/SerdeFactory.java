@@ -2,6 +2,7 @@ package com.example.stateful.processor.serde;
 
 import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.MessageEnvelope;
+import com.example.stateful.messaging.MessageEnvelopeAvroCodec;
 import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.TBucket;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,7 +22,10 @@ public final class SerdeFactory {
     }
 
     public Serde<MessageEnvelope> envelopeSerde() {
-        return new JsonSerde<>(objectMapper, MessageEnvelope.class);
+        return Serdes.serdeFrom(
+                (topic, data) -> MessageEnvelopeAvroCodec.serialize(data),
+                (topic, data) -> MessageEnvelopeAvroCodec.deserialize(data)
+        );
     }
 
     public Serde<DbSyncEnvelope> dbSyncEnvelopeSerde() {

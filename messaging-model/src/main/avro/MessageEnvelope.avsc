@@ -1,0 +1,80 @@
+{
+  "type": "record",
+  "name": "MessageEnvelope",
+  "namespace": "com.example.stateful.messaging.avro",
+  "fields": [
+    {"name": "kind", "type": {"type": "enum", "name": "MessageKind", "symbols": ["T", "S", "TS"]}},
+    {"name": "t", "type": ["null", {
+      "type": "record",
+      "name": "T",
+      "fields": [
+        {"name": "id", "type": "string"},
+        {"name": "pid", "type": "string"},
+        {"name": "pidAlt1", "type": ["null", "string"], "default": null},
+        {"name": "pidAlt2", "type": ["null", "string"], "default": null},
+        {"name": "ref", "type": "string"},
+        {"name": "accId", "type": ["null", "string"], "default": null},
+        {"name": "sorId", "type": ["null", "string"], "default": null},
+        {"name": "oarId", "type": ["null", "string"], "default": null},
+        {"name": "tt", "type": {"type": "enum", "name": "TT", "symbols": ["B", "S", "CS", "SS"]}},
+        {"name": "tDate", "type": ["null", {"type": "int", "logicalType": "date"}], "default": null},
+        {"name": "sDate", "type": ["null", {"type": "int", "logicalType": "date"}], "default": null},
+        {"name": "tCycle", "type": {"type": "enum", "name": "TCycle", "symbols": ["SD", "RT"]}},
+        {"name": "sMode", "type": {"type": "enum", "name": "SMode", "symbols": ["CN", "DP", "FP", "IS", "CS"]}},
+        {"name": "a_status", "type": {"type": "enum", "name": "AStatus", "symbols": ["NORM", "FAIL"]}},
+        {"name": "activity", "type": {"type": "enum", "name": "ActType", "symbols": ["A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12", "A13", "A14", "A15", "A16", "A17", "A18", "A19", "A20"]}},
+        {"name": "mStatus", "type": {"type": "enum", "name": "MStatus", "symbols": ["M", "U"]}},
+        {"name": "cancel", "type": "boolean"},
+        {"name": "q", "type": "long"},
+        {"name": "q_a_total", "type": "long"},
+        {"name": "q_a_delta_last", "type": "long"},
+        {"name": "q_f", "type": "long"},
+        {"name": "ledgerTime", "type": ["null", "long"], "default": null}
+      ]
+    }], "default": null},
+    {"name": "s", "type": ["null", {
+      "type": "record",
+      "name": "S",
+      "fields": [
+        {"name": "id", "type": "string"},
+        {"name": "pid", "type": "string"},
+        {"name": "bDate", "type": ["null", {"type": "int", "logicalType": "date"}], "default": null},
+        {"name": "q", "type": "long"},
+        {"name": "q_carry", "type": "long"},
+        {"name": "q_a", "type": "long"},
+        {"name": "q_a_opposite_delta", "type": "long"},
+        {"name": "q_a_opposite_total", "type": "long"},
+        {"name": "rollover", "type": "boolean"},
+        {"name": "o", "type": "boolean"},
+        {"name": "dir", "type": {"type": "enum", "name": "Dir", "symbols": ["D", "R"]}},
+        {"name": "sCycle", "type": {"type": "enum", "name": "SCycle", "symbols": ["SD", "MD", "ED"]}},
+        {"name": "ledgerTime", "type": ["null", "long"], "default": null}
+      ]
+    }], "default": null},
+    {"name": "ts", "type": ["null", {
+      "type": "record",
+      "name": "TS",
+      "fields": [
+        {"name": "id", "type": "string"},
+        {"name": "pid", "type": "string"},
+        {"name": "pidAlt1", "type": ["null", "string"], "default": null},
+        {"name": "pidAlt2", "type": ["null", "string"], "default": null},
+        {"name": "tid", "type": "string"},
+        {"name": "sid", "type": "string"},
+        {"name": "accId", "type": ["null", "string"], "default": null},
+        {"name": "sorId", "type": ["null", "string"], "default": null},
+        {"name": "oarId", "type": ["null", "string"], "default": null},
+        {"name": "tDate", "type": ["null", {"type": "int", "logicalType": "date"}], "default": null},
+        {"name": "sDate", "type": ["null", {"type": "int", "logicalType": "date"}], "default": null},
+        {"name": "q", "type": "long"},
+        {"name": "q_a_delta", "type": "long"},
+        {"name": "q_a_total_after", "type": "long"},
+        {"name": "tt", "type": "TT"},
+        {"name": "activity", "type": "ActType"},
+        {"name": "mStatus", "type": "MStatus"},
+        {"name": "o", "type": "boolean"},
+        {"name": "cancel", "type": "boolean"}
+      ]
+    }], "default": null}
+  ]
+}
