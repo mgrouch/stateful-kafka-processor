@@ -1,6 +1,7 @@
 package com.example.stateful.processor.logic;
 
 import com.example.stateful.domain.AStatus;
+import com.example.stateful.domain.Dir;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TT;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 class AutoAllocOppositeStrategyTest {
 
@@ -84,6 +86,53 @@ class AutoAllocOppositeStrategyTest {
 
         assertThat(order).containsExactly("sd-1", "rt-1", "rt-2");
     }
+
+    @Test
+    void allocateForIncomingSOnlyAllocatesWhenTLedgerTimeIsBeforeOrEqualToSLedgerTime() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        S incomingS = new S("s-1", "PID", null, 10L, 0L, 0L, 0L, 0L, false, false, Dir.R, 100L);
+
+        T eligible = t("t-eligible", TT.B, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 100L);
+        T ineligible = t("t-ineligible", TT.B, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 101L);
+
+        AllocationResult result = strategy.allocateForIncomingS(
+                List.of(eligible, ineligible),
+                List.of(),
+                incomingS,
+                "ts");
+
+        assertThat(result.updatedIncomingS().q_a()).isEqualTo(10L);
+        assertThat(result.updatedT())
+                .extracting(T::id, T::q_a_total)
+                .containsExactly(
+                        tuple("t-eligible", 10L),
+                        tuple("t-ineligible", 0L)
+                );
+    }
+
+    @Test
+    void allocateForIncomingSOnlyAutoAllocatesOppositeWhenLedgerTimeIsCompatible() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        S incomingS = new S("s-1", "PID", null, 10L, 0L, 0L, 0L, 0L, false, false, Dir.R, 100L);
+
+        T eligibleOpposite = t("t-opposite-eligible", TT.S, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 99L);
+        T ineligibleOpposite = t("t-opposite-ineligible", TT.S, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 101L);
+
+        AllocationResult result = strategy.allocateForIncomingS(
+                List.of(eligibleOpposite, ineligibleOpposite),
+                List.of(),
+                incomingS,
+                "ts");
+
+        assertThat(result.updatedIncomingS().q_a_opposite_delta()).isEqualTo(-10L);
+        assertThat(result.updatedT())
+                .extracting(T::id, T::q_a_total)
+                .containsExactly(
+                        tuple("t-opposite-ineligible", 0L),
+                        tuple("t-opposite-eligible", -10L)
+                );
+    }
+
     private static T t(String id, TT tt, long q, long qATotal, long qF, AStatus status, TCycle tCycle, Long ledgerTime) {
         long normalizedQ = (tt == TT.S || tt == TT.SS) ? -Math.abs(q) : Math.abs(q);
         long normalizedQATotal = qATotal == 0L ? 0L : Long.signum(normalizedQ) * Math.abs(qATotal);
