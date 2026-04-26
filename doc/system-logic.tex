@@ -123,8 +123,8 @@ Constraints and defaults:
   \item $id,p,ref$ are non-empty text.
   \item $accId$ is optional but non-blank if present.
   \item $tt\in\{B,S,CS,SS\}$, default $B$.
-  \item $tCycle$ default $SD$.
-  \item $sMode$ default $CN$.
+  \item $tCycle\in\{SD,RT\}$, default $SD$.
+  \item $sMode\in\{CN,DP,FP,IS,CS\}$, default $CN$.
   \item $a\_status\in\{NORM,FAIL\}$, default $NORM$.
   \item $cancel\in\{true,false\}$, default $false$.
   \item $q\neq 0$ with sign gate:
@@ -270,6 +270,34 @@ The listed order is strict global priority:
 ``Priority'' means \emph{which candidate set receives allocation opportunity first from the same residual pool}.
 Earlier buckets consume residual before later buckets are considered.
 Therefore priority directly impacts which records close first and which remain open.
+
+\subsection{Exact bucket predicates (what each name means)}
+Let candidate $T$ fields be:
+\[
+q_a \equiv T.q_{a,total},\qquad q_f \equiv T.q_f,\qquad tt \equiv T.tt.
+\]
+Also define:
+\[
+S\text{-trade}\iff (tt=S),\qquad non\text{-}S\iff (tt\neq S).
+\]
+Then each bucket is:
+\begin{itemize}[leftmargin=*]
+  \item \texttt{PARTIAL\_FAIL\_S}: $q_a\neq 0 \land q_f\neq 0 \land S\text{-trade}$.
+  \item \texttt{PARTIAL\_FAIL\_NON\_S}: $q_a\neq 0 \land q_f\neq 0 \land non\text{-}S$.
+  \item \texttt{FULL\_FAIL\_S}: $q_a=0 \land q_f\neq 0 \land S\text{-trade}$.
+  \item \texttt{FULL\_FAIL\_NON\_S}: $q_a=0 \land q_f\neq 0 \land non\text{-}S$.
+  \item \texttt{PARTIAL\_ALLOC\_S}: $q_a\neq 0 \land q_f=0 \land S\text{-trade}$.
+  \item \texttt{PARTIAL\_ALLOC\_NON\_S}: $q_a\neq 0 \land q_f=0 \land non\text{-}S$.
+  \item \texttt{OPEN\_S}: $q_a=0 \land q_f=0 \land S\text{-trade}$.
+  \item \texttt{OPEN\_OTHER}: all remaining candidates not matched above.
+\end{itemize}
+
+Operationally:
+\begin{itemize}[leftmargin=*]
+  \item ``partial'' means the trade already has some allocation ($q_{a,total}\neq 0$).
+  \item ``full fail'' means it is failed ($q_f\neq 0$) but still unallocated ($q_{a,total}=0$).
+  \item ``non-S'' means any trade type except $tt=S$ (i.e., $tt\in\{B,CS,SS\}$).
+\end{itemize}
 
 \subsection{Intra-bucket deterministic order}
 Within each bucket:
