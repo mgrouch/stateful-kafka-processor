@@ -26,6 +26,7 @@
 
 \newtheorem{definition}{Definition}
 \newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
 
 \begin{document}
 \begin{abstract}
@@ -147,6 +148,13 @@ Dedupe window is $W=14$ days (in milliseconds in code).
 \section{High-Level Transition Flow}
 Each input kind is in $\{T,S,TS\}$.
 The runtime allocation strategy is \texttt{AutoAllocOppositeStrategy}.
+For each key $p$, one-step state evolution can be viewed as
+\[
+\Sigma^{k+1}_p = F(\Sigma^k_p,e_k),
+\]
+where $\Sigma_p=(\mathcal{T}_p,\mathcal{S}_p,\mathcal{D},\mathcal{M}_p)$ and
+$\mathcal{M}_p$ is the processed-marker map for non-cancel $T$.
+The function $F$ is deterministic for fixed state and source metadata.
 
 \subsection{Incoming $T$ (normal path and cancel path)}
 \begin{enumerate}[leftmargin=*]
@@ -267,15 +275,34 @@ eventId ={}& topic\text{-}partition\text{-}offset\\
 \end{aligned}
 \]
 Mutation type set:
+\begin{table}[t]
+\centering
+\caption{Mutation type set}
+\begin{tabularx}{\columnwidth}{lY}
+\toprule
+Type & Role \\
+\midrule
+\texttt{ACCEPTED\_T} & accepted input of kind $T$ \\
+\texttt{ACCEPTED\_S} & accepted input of kind $S$ \\
+\texttt{GENERATED\_TS} & emitted or forwarded $TS$ \\
+\texttt{UPSERT\_UNPROCESSED\_T} & open $T$ image update \\
+\texttt{UPSERT\_UNPROCESSED\_S} & open $S$ image update \\
+\texttt{DELETE\_UNPROCESSED\_T} & closed $T$ removal \\
+\texttt{DELETE\_UNPROCESSED\_S} & closed $S$ removal \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Store Rewrite Semantics}
+Whenever the implementation rewrites $\mathcal{T}_p$ or $\mathcal{S}_p$:
 \begin{itemize}[leftmargin=*]
-  \item \texttt{ACCEPTED\_T}
-  \item \texttt{ACCEPTED\_S}
-  \item \texttt{GENERATED\_TS}
-  \item \texttt{UPSERT\_UNPROCESSED\_T}
-  \item \texttt{UPSERT\_UNPROCESSED\_S}
-  \item \texttt{DELETE\_UNPROCESSED\_T}
-  \item \texttt{DELETE\_UNPROCESSED\_S}
+  \item records with nonzero residual are retained as the latest value by $id$,
+  \item records with zero residual are removed from the open-state image,
+  \item every open/closed transition emits the matching UPSERT/DELETE mutation.
 \end{itemize}
+\begin{remark}
+This rewrite rule is shared by normal allocation and compensation-cancel paths, so cancellation is auditable with the same state-delta vocabulary as non-cancel processing.
+\end{remark}
 
 \section{Dedupe Eviction}
 On stream-time punctuation, delete dedupe entries older than
@@ -297,5 +324,22 @@ All rewritten and emitted entities keep the same partition key $p$.
 \end{aligned}
 \]
 \end{proposition}
+
+\begin{proposition}[Bucket and priority determinism]
+For incoming $S$, candidate $T$ records are processed in a fixed bucket order, and intra-bucket order is deterministic under fixed seed inputs.
+For incoming $T$, compatible $S$ are processed with $rollover=true$ before $rollover=false$, then by $id$.
+\end{proposition}
+
+\begin{algorithm}[t]
+\caption{Signed pair update primitive}
+\begin{algorithmic}[1]
+\Require residuals $x,y$ and their owning records
+\State $\delta \gets Alloc(x,y)$
+\If{$\delta \neq 0$}
+  \State increase each side's allocated accumulator by $+\delta$
+  \State emit one link record $TS$ with signed delta equal to $\delta$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
 
 \end{document}
