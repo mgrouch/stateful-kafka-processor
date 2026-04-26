@@ -39,7 +39,10 @@ Fix partition keys $P$. All processing is per key $p\in P$.
 
 \begin{definition}[Record $T$]
 \[
-T=(id,p,pidAlt1,pidAlt2,ref,accId,sorId,oarId,tt,tDate,sDate,tCycle,sMode,a\_status,activity,mStatus,cancel,q,q\_{a,total},q\_{a,\Delta,last},q_f,ledgerTime).
+\begin{aligned}
+T={}&(id,p,pidAlt1,pidAlt2,ref,accId,sorId,oarId,tt,tDate,sDate,tCycle,\\
+&\quad sMode,a\_status,activity,mStatus,cancel,q,q\_{a,total},q\_{a,\Delta,last},q_f,ledgerTime).
+\end{aligned}
 \]
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
@@ -55,7 +58,10 @@ Constraints and defaults:
 
 \begin{definition}[Record $S$]
 \[
-S=(id,p,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},q_{a,opposite,total},rollover,o,dir,sCycle,ledgerTime).
+\begin{aligned}
+S={}&(id,p,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},q_{a,opposite,total},\\
+&\quad rollover,o,dir,sCycle,ledgerTime).
+\end{aligned}
 \]
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
@@ -70,7 +76,10 @@ Constraints and defaults:
 
 \begin{definition}[Record $TS$]
 \[
-TS=(id,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,sDate,q,q_{a,\Delta},q_{a,total,after},tt,activity,mStatus,o,cancel).
+\begin{aligned}
+TS={}&(id,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,sDate,q,q_{a,\Delta},\\
+&\quad q_{a,total,after},tt,activity,mStatus,o,cancel).
+\end{aligned}
 \]
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
@@ -141,7 +150,10 @@ Default runtime strategy is \texttt{AutoAllocOppositeStrategy}.
   \]
   and emit
   \[
-  TS=(idPrefix\text{-}k,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,bDate,q,\delta_j,q_{a,total}^{(T)},tt,o).
+  \begin{aligned}
+  TS={}&(idPrefix\text{-}k,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,\\
+  &\quad bDate,q,\delta_j,q_{a,total}^{(T)},tt,o).
+  \end{aligned}
   \]
   \item Append incompatible $S$ unchanged.
   \item Persist each updated $S$ as upsert/delete by open/closed residual.
@@ -173,7 +185,10 @@ Forward to processed output and emit mutation \texttt{GENERATED\_TS}.
 \section{Mutation Events}
 Each emitted mutation record carries:
 \[
-(type,p,T?,S?,TS?,topic,partition,offset,timestamp,ordinal,eventId).
+\begin{aligned}
+(type,p,T?,S?,TS?,topic,partition,offset,timestamp,ordinal,\\
+\quad eventId).
+\end{aligned}
 \]
 Event id is deterministic:
 \[
