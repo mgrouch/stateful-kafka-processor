@@ -39,12 +39,13 @@ Fix partition keys $P$. All processing is per key $p\in P$.
 
 \begin{definition}[Record $T$]
 \[
-T=(id,p,ref,accId,tt,tDate,sDate,a\_status,cancel,q,q\_{a,total},q\_{a,\Delta,last},q_f).
+T=(id,p,pidAlt1,pidAlt2,ref,accId,sorId,oarId,tt,tDate,sDate,tCycle,sMode,a\_status,activity,mStatus,cancel,q,q\_{a,total},q\_{a,\Delta,last},q_f,ledgerTime).
 \]
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
-  \item $id,p,ref$ are non-empty text; $accId$ optional but non-blank if present.
-  \item $tt\in\{B,S,CS,SS\}$ with default $B$; $a\_status\in\{NORM,FAIL\}$ with default $NORM$.
+  \item $id,p,ref$ are non-empty text.
+  \item $pidAlt1,pidAlt2,accId,sorId,oarId$ are optional but non-blank if present.
+  \item $tt\in\{B,S,CS,SS\}$ with default $B$; $tCycle$ defaults to $SD$; $sMode$ defaults to $CN$; $a\_status\in\{NORM,FAIL\}$ defaults to $NORM$; $activity$ defaults to $A01$; $mStatus$ defaults to $U$.
   \item $q\neq 0$ and sign gate by $tt$: $tt\in\{B,CS\}\Rightarrow q>0$, $tt\in\{S,SS\}\Rightarrow q<0$.
   \item $\operatorname{sgn}(q\_{a,total})\in\{0,\operatorname{sgn}(q)\}$, $|q\_{a,total}|\le |q|$.
   \item $\operatorname{sgn}(q\_{a,\Delta,last})\in\{0,\operatorname{sgn}(q)\}$, $|q\_{a,\Delta,last}|\le |q|$.
@@ -54,12 +55,12 @@ Constraints and defaults:
 
 \begin{definition}[Record $S$]
 \[
-S=(id,p,bDate,q,q_{carry},q_a,rollover,dir).
+S=(id,p,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},q_{a,opposite,total},rollover,o,dir,sCycle,ledgerTime).
 \]
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
   \item $id,p$ are non-empty text.
-  \item $dir\in\{D,R\}$ with default from $q$ ($q<0\Rightarrow D$, $q>0\Rightarrow R$).
+  \item $dir\in\{D,R\}$ with default from $q$ ($q<0\Rightarrow D$, $q>0\Rightarrow R$); $sCycle$ defaults to $SD$.
   \item $q+q_{carry}\neq 0$.
   \item If $q\neq 0$ and $q_{carry}\neq 0$ then $\operatorname{sgn}(q)=\operatorname{sgn}(q_{carry})$.
   \item $dir=D\Rightarrow q<0$, $dir=R\Rightarrow q>0$.
@@ -69,12 +70,13 @@ Constraints and defaults:
 
 \begin{definition}[Record $TS$]
 \[
-TS=(id,p,tid,sid,accId,tDate,sDate,q,q_{a,\Delta},q_{a,total,after},tt).
+TS=(id,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,sDate,q,q_{a,\Delta},q_{a,total,after},tt,activity,mStatus,o,cancel).
 \]
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
-  \item $id,p,tid,sid$ are non-empty text; $accId$ optional but non-blank if present.
-  \item $tt$ defaults to $B$ when null.
+  \item $id,p,tid,sid$ are non-empty text.
+  \item $pidAlt1,pidAlt2,accId,sorId,oarId$ are optional but non-blank if present.
+  \item $tt$ defaults to $B$ when null; $activity$ defaults to $A01$; $mStatus$ defaults to $U$.
   \item $q\neq 0$.
   \item $\operatorname{sgn}(q_{a,\Delta})=\operatorname{sgn}(q)$ and $|q_{a,\Delta}|\le |q|$.
   \item $\operatorname{sgn}(q_{a,total,after})\in\{0,\operatorname{sgn}(q)\}$ and $|q_{a,total,after}|\le |q|$.
@@ -123,8 +125,9 @@ Default runtime strategy is \texttt{AutoAllocOppositeStrategy}.
 \begin{enumerate}[leftmargin=*]
   \item Build dedupe key $(p,ref,cancel)$; if seen within $W$, ignore input.
   \item Else emit mutation \texttt{ACCEPTED\_T}.
-  \item Load all $S\in\mathcal{S}_p$.
-  \item Split by sign compatibility with current $R_T(T_{in})$.
+  \item If $cancel=true$ and an open stored $T$ with same id exists with $q_{a,total}=0$, force-close it, emit one cancel $TS$, and delete that $T$ from state.
+  \item Otherwise load all $S\in\mathcal{S}_p$.
+  \item Split by ledger/sign compatibility with current $R_T(T_{in})$ (ledger compatibility is $ledgerTime_T\le ledgerTime_S$ when both present).
   \item Order compatible $S$ by $(\neg rollover,id)$ (thus $rollover=true$ first).
   \item Iterate ordered compatible $S_j$:
   \[
@@ -138,7 +141,7 @@ Default runtime strategy is \texttt{AutoAllocOppositeStrategy}.
   \]
   and emit
   \[
-  TS=(idPrefix\text{-}k,p,tid,sid,accId,tDate,bDate,q,\delta_j,q_{a,total}^{(T)},tt).
+  TS=(idPrefix\text{-}k,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,bDate,q,\delta_j,q_{a,total}^{(T)},tt,o).
   \]
   \item Append incompatible $S$ unchanged.
   \item Persist each updated $S$ as upsert/delete by open/closed residual.
@@ -148,22 +151,22 @@ Additionally, when a $T$ becomes fully allocated ($q_{a,total}=q$), set $sDate$ 
 
 \subsection{Incoming $S$}
 \begin{enumerate}[leftmargin=*]
-  \item Emit mutation \texttt{ACCEPTED\_S}.
+  \item Emit mutation \texttt{ACCEPTED\_S}. If $q_{carry}\neq 0$, also forward to the dedicated $S$-with-carry sink.
   \item Load all $T\in\mathcal{T}_p$.
-  \item Auto-allocate opposite-sign $T$ first: for each opposite-sign candidate, set $q_{a,total}\gets q$, set $q_{a,\Delta,last}\gets q-q_{a,total}^{old}$, emit $TS$ when the delta is non-zero, and accumulate the same delta into $S_{in}.q_{a,opposite,\Delta}$ and $S_{in}.q_{a,opposite,total}$.
-  \item Split remaining $T$ by sign compatibility with updated residual $R_S(S_{in})$.
-  \item For compatible remaining $T$: canonical sort by $id$, then bucket by $a\_status$ into $FAIL$ and $NORM$.
-  \item Deterministically shuffle each bucket with seed
+  \item Auto-allocate opposite-sign $T$ first over both ordered and untouched candidate pools, subject to ledger-time compatibility ($ledgerTime_T\le ledgerTime_S$ when both present): set $q_{a,total}\gets q$, set $q_{a,\Delta,last}\gets q-q_{a,total}^{old}$, emit $TS$ when delta is non-zero, and accumulate that delta into $S_{in}.q_{a,opposite,\Delta}$ and $S_{in}.q_{a,opposite,total}$.
+  \item Split remaining candidates by ledger/sign compatibility with updated residual $R_S(S_{in})$.
+  \item Canonically sort compatible $T$ by $id$, then partition into exact buckets:
+  \texttt{PARTIAL\_FAIL\_S}, \texttt{PARTIAL\_FAIL\_NON\_S}, \texttt{FULL\_FAIL\_S}, \texttt{FULL\_FAIL\_NON\_S}, \texttt{PARTIAL\_ALLOC\_S}, \texttt{PARTIAL\_ALLOC\_NON\_S}, \texttt{OPEN\_S}, \texttt{OPEN\_OTHER}.
+  \item For each bucket, deterministically shuffle only non-RT ($tCycle\neq RT$) entries with seed
   \[
   hash(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName),
   \]
-  then process $FAIL$ bucket first, $NORM$ second.
-  \item For each selected $T_i$, apply signed update and emit $TS$ when $\delta\neq 0$.
-  \item Append incompatible remaining $T$ unchanged, then append the already auto-allocated opposite-sign $T$.
+  then append RT entries in FIFO order by $(ledgerTime\ \text{nulls-last}, id)$.
+  \item Process buckets in the exact order listed above. For each selected $T_i$, apply signed update and emit $TS$ when $\delta\neq 0$.
+  \item Append incompatible remaining $T$ unchanged, then append already auto-allocated opposite-sign $T$.
   \item Persist each updated $T$ as upsert/delete by open/closed residual.
   \item Persist incoming $S$ as upsert/delete by open/closed residual.
 \end{enumerate}
-
 \subsection{Incoming $TS$}
 Forward to processed output and emit mutation \texttt{GENERATED\_TS}.
 

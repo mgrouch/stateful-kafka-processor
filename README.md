@@ -17,17 +17,19 @@ The runtime contract follows the Java records exactly.
 
 ```text
 T(
-  id, pid, ref, accId,
-  tt, tDate, sDate, a_status, cancel,
-  q, q_a_total, q_a_delta_last, q_f
+  id, pid, pidAlt1, pidAlt2, ref, accId, sorId, oarId,
+  tt, tDate, sDate,
+  tCycle, sMode, a_status, activity, mStatus,
+  cancel,
+  q, q_a_total, q_a_delta_last, q_f,
+  ledgerTime
 )
 ```
 
 Validation and defaults:
-- `id`, `pid`, `ref` are non-null/non-blank.
-- `accId` is optional but cannot be blank when present.
-- `tt` defaults to `B` when null.
-- `a_status` defaults to `NORM` when null.
+- Required text: `id`, `pid`, `ref`.
+- Optional text (if present, must be non-blank): `pidAlt1`, `pidAlt2`, `accId`, `sorId`, `oarId`.
+- Defaults: `tt=B`, `tCycle=SD`, `sMode=CN`, `a_status=NORM`, `activity=A01`, `mStatus=U`.
 - `q != 0`; sign enforced by `tt`:
   - `tt in {B, CS}` => `q > 0`
   - `tt in {S, SS}` => `q < 0`
@@ -38,12 +40,19 @@ Validation and defaults:
 ### `S`
 
 ```text
-S(id, pid, bDate, q, q_carry, q_a, rollover, dir)
+S(
+  id, pid, bDate,
+  q, q_carry, q_a,
+  q_a_opposite_delta, q_a_opposite_total,
+  rollover, o,
+  dir, sCycle,
+  ledgerTime
+)
 ```
 
 Validation and defaults:
-- `id`, `pid` are non-null/non-blank.
-- `dir` defaults from `q` when null (`q<0 => D`, `q>0 => R`).
+- Required text: `id`, `pid`.
+- Defaults: `dir` inferred from `q` (`q<0 => D`, `q>0 => R`), `sCycle=SD`.
 - `q + q_carry != 0`.
 - If both `q` and `q_carry` are non-zero, they must share sign.
 - `dir == D => q < 0`; `dir == R => q > 0`.
@@ -52,16 +61,24 @@ Validation and defaults:
 ### `TS`
 
 ```text
-TS(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt)
+TS(
+  id, pid, pidAlt1, pidAlt2,
+  tid, sid,
+  accId, sorId, oarId,
+  tDate, sDate,
+  q, q_a_delta, q_a_total_after,
+  tt, activity, mStatus,
+  o, cancel
+)
 ```
 
 Validation and defaults:
-- `id`, `pid`, `tid`, `sid` are non-null/non-blank.
-- `accId` is optional but cannot be blank when present.
-- `tt` defaults to `B` when null.
+- Required text: `id`, `pid`, `tid`, `sid`.
+- Optional text (if present, must be non-blank): `pidAlt1`, `pidAlt2`, `accId`, `sorId`, `oarId`.
+- Defaults: `tt=B`, `activity=A01`, `mStatus=U`.
 - `q != 0`.
-- `q_a_delta` sign matches `q` and `abs(q_a_delta) <= abs(q)`.
-- `q_a_total_after` sign matches `q` (or is 0) and `abs(q_a_total_after) <= abs(q)`.
+- `q_a_delta` sign matches `q`, and `abs(q_a_delta) <= abs(q)`.
+- `q_a_total_after` sign matches `q` (or is 0), and `abs(q_a_total_after) <= abs(q)`.
 
 ## Runtime behavior
 
@@ -70,7 +87,7 @@ Validation and defaults:
 - DB sync output topic: `db-sync-events`
 - Failed `T` output topic: `failed-t-events`
 - `S` with `q_carry` output topic: `s-with-q-carry-events`
-- Kafka key remains `pid` for all topics.
+- Kafka key remains `pid` for all sinks (input key mismatch only logs a warning).
 
 Kafka Streams state stores:
 
@@ -80,13 +97,13 @@ Kafka Streams state stores:
 
 ## Allocation logic (exact flow)
 
-Default runtime strategy is `AutoAllocOppositeStrategy` (the naive strategy remains available only for explicit wiring/tests).
+Default runtime strategy is `AutoAllocOppositeStrategy` (naive remains available for explicit wiring/tests).
 
 ### Shared math
 
 - `remainingT = T.q - T.q_a_total`
-- `remainingS = remainingCarry + remainingRegular`, where carry is consumed before regular quantity.
-- Sign compatibility check: both residuals are non-zero and have identical sign.
+- `remainingS = remainingCarry + remainingRegular`, where carry is consumed first.
+- Sign compatibility check: both residuals non-zero and same sign.
 - Allocation delta:
   - `delta = sign(targetResidual) * min(abs(targetResidual), abs(sourceResidual))`
   - if sign-incompatible => `delta = 0`
@@ -95,55 +112,62 @@ Default runtime strategy is `AutoAllocOppositeStrategy` (the naive strategy rema
 
 1. Dedupe by key `pid|ref|cancel` with 14-day stream-time window.
 2. Emit `ACCEPTED_T` if not deduped.
-3. Load `S` candidates for the same `pid`.
-4. Split by sign compatibility against incoming `T` residual.
-5. Order only compatible `S` candidates by:
-   - `rollover=true` first
-   - then `id` ascending
-6. Iterate ordered compatible candidates:
-   - apply signed allocation
-   - update `T.q_a_total += delta`
-   - set `T.q_a_delta_last = delta`
-   - update candidate `S.q_a += delta`
-   - emit `TS(idPrefix-index, pid, tid, sid, accId, tDate, bDate, T.q, delta, T.q_a_total_after, tt)`
-7. Append sign-incompatible `S` unchanged.
-8. Persist every updated `S` with per-item upsert/delete mutation according to open/closed residual.
-9. Persist incoming `T` with upsert/delete mutation according to open/closed residual.
+3. If `a_status == FAIL`, also emit the `T` to `failed-t-events`.
+4. Cancellation fast-path: if incoming `cancel=true` and an open in-store `T` exists with same `id` and `q_a_total==0`, force-close it, emit a cancel `TS`, and delete the open `T` state.
+5. Otherwise load `S` candidates for same `pid`.
+6. Keep only ledger-compatible + sign-compatible candidates for allocation (`T.ledgerTime <= S.ledgerTime` when both present).
+7. Order compatible candidates: `rollover=true` first, then `id` ascending.
+8. Iterate ordered candidates with signed allocation:
+   - `T.q_a_total += delta`
+   - `T.q_a_delta_last = delta`
+   - `S.q_a += delta`
+   - emit `TS(idPrefix-index, pid, pidAlt1, pidAlt2, tid, sid, accId, sorId, oarId, tDate, bDate, q=T.q, q_a_delta=delta, q_a_total_after, tt, o=S.o)`
+9. Non-allocated candidates (sign/ledger-incompatible + untouched) are appended unchanged.
+10. Persist every updated `S` with per-item upsert/delete mutation by open/closed residual.
+11. Persist incoming `T` with upsert/delete mutation by open/closed residual.
 
-Special `sDate` rule for `T`: when `T` becomes fully allocated (`q_a_total == q`) during an allocation step, set `T.sDate` to candidate `S.bDate` when present (otherwise keep current `sDate`).
+Special `sDate` rule for `T`: when a `T` becomes fully allocated (`q_a_total == q`) during an allocation step, set `T.sDate` to candidate `S.bDate` when present; otherwise keep current `sDate`.
 
 ### Incoming `S`
 
 1. Emit `ACCEPTED_S`.
-2. Load `T` candidates for the same `pid`.
-3. Auto-allocate opposite-sign `T` first (for both previously ordered and untouched candidates):
-   - for each opposite-sign `T`, force-close by setting `q_a_total = q`
-   - set `q_a_delta_last = q - old(q_a_total)`
-   - accumulate incoming `S.q_a_opposite_delta` and `S.q_a_opposite_total`
-   - emit `TS(...)` for every non-zero opposite delta
-4. Split remaining `T` by sign compatibility against the updated incoming `S` residual.
-5. On compatible remaining `T` only:
-   - canonical sort by `id`
-   - bucket into `a_status == FAIL` and others
-   - deterministic shuffle each bucket using seed hash of `(allocationLotterySeed, pid, incomingS.id, "INCOMING_S", bucketName)`
-   - process FAIL bucket first, then NORM bucket
-6. Iterate in that order:
-   - apply signed allocation
-   - update candidate `T.q_a_total += delta`
-   - set candidate `T.q_a_delta_last = delta`
-   - update incoming `S.q_a += delta`
+2. If `q_carry != 0`, also emit to `s-with-q-carry-events`.
+3. Load `T` candidates for same `pid`.
+4. Auto-allocate opposite-sign `T` first over both ordered and untouched pools, but only when ledger-compatible:
+   - set `T.q_a_total = T.q`
+   - set `T.q_a_delta_last = T.q - old(T.q_a_total)`
+   - emit `TS(...)` for non-zero opposite delta
+   - accumulate into incoming `S.q_a_opposite_delta` and `S.q_a_opposite_total`
+5. On remaining candidates, keep only ledger-compatible + sign-compatible ones using updated incoming `S` residual.
+6. Canonical sort by `id`, then bucket by exact strategy predicates:
+   - `PARTIAL_FAIL_S`, `PARTIAL_FAIL_NON_S`, `FULL_FAIL_S`, `FULL_FAIL_NON_S`, `PARTIAL_ALLOC_S`, `PARTIAL_ALLOC_NON_S`, `OPEN_S`, `OPEN_OTHER`
+7. In each bucket:
+   - split non-RT and RT (`tCycle == RT`)
+   - deterministically shuffle non-RT using hash of `(allocationLotterySeed, pid, incomingS.id, "INCOMING_S", bucketName)`
+   - append RT in FIFO order by `(ledgerTime nulls last, id)`
+8. Process buckets in the exact order listed in step 6, applying signed allocation:
+   - candidate `T.q_a_total += delta`
+   - candidate `T.q_a_delta_last = delta`
+   - incoming `S.q_a += delta`
    - emit `TS(...)` with `q = T.q`, `q_a_delta = delta`, `q_a_total_after = updated T.q_a_total`
-7. Append sign-incompatible remaining `T` unchanged, then append already auto-allocated opposite-sign `T`.
-8. Persist every updated `T` with per-item upsert/delete mutation according to open/closed residual.
-9. Persist incoming `S` with upsert/delete mutation according to open/closed residual.
+9. Append sign/ledger-incompatible remaining `T` unchanged, then append the already auto-allocated opposite-sign `T`.
+10. Persist every updated `T` with per-item upsert/delete mutation by open/closed residual.
+11. Persist incoming `S` with upsert/delete mutation by open/closed residual.
 
-Special `sDate` rule for `T`: same as incoming `T` flow (set when a `T` becomes fully allocated).
+Special `sDate` rule for `T`: same as incoming `T` flow.
 
 ### Incoming `TS`
 
-- Forward to processed stream.
+- Forward to `processed-events` unchanged.
 - Emit `GENERATED_TS` mutation.
 
+## Topology and processor notes
+
+- Topology has one source (`input-events-source`) and one processor (`stateful-envelope-processor`).
+- Four sinks are wired from the processor: processed, db-sync, failed-T, and S-with-carry.
+- All three state stores are persistent key-value stores with changelog logging enabled.
+- DB-sync metadata (`sourceTopic`, `sourcePartition`, `sourceOffset`) is required from Kafka record metadata.
+- `eventId` is deterministic: `topic-partition-offset-ordinal-mutationType`.
 ## DB synchronization events
 
 For each accepted/generated/store mutation, the processor emits `DbSyncEnvelope` records with:
