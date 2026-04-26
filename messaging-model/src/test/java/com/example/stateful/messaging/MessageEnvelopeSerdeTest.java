@@ -4,26 +4,20 @@ import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MessageEnvelopeSerdeTest {
 
     @Test
-    void tEnvelopeRoundTripsWithRefCancelAndAllocationState() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.findAndRegisterModules();
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
+    void tEnvelopeRoundTripsWithRefCancelAndAllocationState() {
         MessageEnvelope original = MessageEnvelope.forT(new T("t-1", "AAA", "REF-10", null, null, null, null, AStatus.FAIL, true, 77L, 11L, 0L, 9L));
 
-        String json = mapper.writeValueAsString(original);
-        MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
+        byte[] bytes = MessageEnvelopeAvroCodec.serialize(original);
+        MessageEnvelope parsed = MessageEnvelopeAvroCodec.deserialize(bytes);
 
         assertEquals(MessageKind.T, parsed.kind());
         assertEquals("t-1", parsed.t().id());
@@ -38,15 +32,11 @@ class MessageEnvelopeSerdeTest {
     }
 
     @Test
-    void sEnvelopeRoundTripsWithRolloverFlag() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.findAndRegisterModules();
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
+    void sEnvelopeRoundTripsWithRolloverFlag() {
         MessageEnvelope original = MessageEnvelope.forS(new S("s-1", "AAA", 91L, 9L, 8L, true));
 
-        String json = mapper.writeValueAsString(original);
-        MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
+        byte[] bytes = MessageEnvelopeAvroCodec.serialize(original);
+        MessageEnvelope parsed = MessageEnvelopeAvroCodec.deserialize(bytes);
 
         assertEquals(MessageKind.S, parsed.kind());
         assertEquals("s-1", parsed.s().id());
@@ -59,15 +49,11 @@ class MessageEnvelopeSerdeTest {
     }
 
     @Test
-    void tsEnvelopeRoundTripsAllocatedQuantity() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.findAndRegisterModules();
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
+    void tsEnvelopeRoundTripsAllocatedQuantity() {
         MessageEnvelope original = MessageEnvelope.forTS(new TS("ts-1", "AAA", "t-1", "s-1", 99L, 12L));
 
-        String json = mapper.writeValueAsString(original);
-        MessageEnvelope parsed = mapper.readValue(json, MessageEnvelope.class);
+        byte[] bytes = MessageEnvelopeAvroCodec.serialize(original);
+        MessageEnvelope parsed = MessageEnvelopeAvroCodec.deserialize(bytes);
 
         assertEquals(MessageKind.TS, parsed.kind());
         assertEquals("AAA", parsed.ts().pid());
