@@ -265,6 +265,10 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
     }
 
     private List<T> shuffleDeterministically(List<T> bucket, String pid, String incomingId, String direction, String bucketName) {
+        List<T> nonRt = bucket.stream()
+                .filter(candidate -> candidate.tCycle() != TCycle.RT)
+                .toList();
+
         List<T> fifoRt = bucket.stream()
                 .filter(candidate -> candidate.tCycle() == TCycle.RT)
                 .sorted(Comparator
@@ -272,17 +276,13 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                         .thenComparing(T::id))
                 .toList();
 
-        List<T> nonRt = bucket.stream()
-                .filter(candidate -> candidate.tCycle() != TCycle.RT)
-                .toList();
-
         List<T> shuffled = new ArrayList<>(nonRt);
         long seed = deriveAllocationSeed(pid, incomingId, direction, bucketName);
         Collections.shuffle(shuffled, new Random(seed));
 
         List<T> ordered = new ArrayList<>(bucket.size());
-        ordered.addAll(fifoRt);
         ordered.addAll(shuffled);
+        ordered.addAll(fifoRt);
         return ordered;
     }
 
