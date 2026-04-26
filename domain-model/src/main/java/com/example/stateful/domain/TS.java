@@ -1,7 +1,5 @@
 package com.example.stateful.domain;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
-
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -13,8 +11,8 @@ public record TS(String id,
                  LocalDate tDate,
                  LocalDate sDate,
                  long q,
-                 @JsonAlias("q_a_d") long q_a_delta,
-                 @JsonAlias("q_a") long q_a_total_after,
+                 long q_a_delta,
+                 long q_a_total_after,
                  TT tt,
                  boolean cancel) {
     public TS(String id, String pid, String tid, String sid, long q, long q_a_delta) {
