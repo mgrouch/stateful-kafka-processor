@@ -1,8 +1,11 @@
 package com.example.stateful.processor.topology;
 
 import com.example.stateful.domain.AStatus;
+import com.example.stateful.domain.ActType;
 import com.example.stateful.domain.Dir;
+import com.example.stateful.domain.MStatus;
 import com.example.stateful.domain.S;
+import com.example.stateful.domain.SCycle;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
 import com.example.stateful.domain.TT;
@@ -555,6 +558,52 @@ class TopologyFactoryTest {
             assertThat(dbSyncEvent.sourceTimestamp()).isEqualTo(t0.toEpochMilli());
             assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA")).isNull();
             assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA")).isNull();
+        }
+    }
+
+    @Test
+    void duplicateSByRefSWithinWindowIsDropped() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, DbSyncEnvelope> dbSyncOutput = harness.dbSyncOutput(driver);
+
+            S first = new S("s-1", "AAA", null, 25L, 0L, 0L, 0L, 0L, false, false, Dir.R, SCycle.SD, null, "s-ref-1");
+            S duplicate = new S("s-2", "AAA", null, 30L, 0L, 0L, 0L, 0L, false, false, Dir.R, SCycle.SD, null, "s-ref-1");
+            input.pipeInput("AAA", MessageEnvelope.forS(first), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forS(duplicate), t0.plusMillis(1).toEpochMilli());
+
+            List<DbSyncMutationType> mutationTypes = dbSyncOutput.readValuesToList().stream()
+                    .map(DbSyncEnvelope::mutationType)
+                    .toList();
+            assertThat(mutationTypes.stream().filter(m -> m == DbSyncMutationType.ACCEPTED_S).count()).isEqualTo(1L);
+            assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items())
+                    .extracting(S::id)
+                    .containsExactly("s-1");
+        }
+    }
+
+    @Test
+    void duplicateIncomingTsByRefTsWithinWindowIsDropped() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+            TestOutputTopic<String, DbSyncEnvelope> dbSyncOutput = harness.dbSyncOutput(driver);
+
+            TS first = new TS("ts-1", "AAA", null, null, "t-1", "s-1", null, null, null, null, null, 25L, 25L, 25L, TT.B, ActType.A01, MStatus.U, false, false, null, "ts-ref-1");
+            TS duplicate = new TS("ts-2", "AAA", null, null, "t-1", "s-1", null, null, null, null, null, 25L, 25L, 25L, TT.B, ActType.A01, MStatus.U, false, false, null, "ts-ref-1");
+            input.pipeInput("AAA", MessageEnvelope.forTS(first), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forTS(duplicate), t0.plusMillis(1).toEpochMilli());
+
+            assertThat(output.readValue().ts().id()).isEqualTo("ts-1");
+            assertThat(output.isEmpty()).isTrue();
+            assertThat(dbSyncOutput.readValue().mutationType()).isEqualTo(DbSyncMutationType.GENERATED_TS);
+            assertThat(dbSyncOutput.isEmpty()).isTrue();
         }
     }
 

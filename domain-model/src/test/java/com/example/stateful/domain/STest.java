@@ -23,4 +23,10 @@ class STest {
         assertDoesNotThrow(() -> new S("s-neg", "AAA", -10L, 0L));
         assertDoesNotThrow(() -> new S("s-pos", "AAA", 10L, 0L));
     }
+
+    @Test
+    void refSMustNotBeBlankWhenProvided() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new S("s-ref", "AAA", null, 10L, 0L, 0L, 0L, 0L, false, false, Dir.R, SCycle.SD, null, " "));
+    }
 }

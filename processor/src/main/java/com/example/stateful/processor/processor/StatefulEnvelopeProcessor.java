@@ -289,6 +289,14 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     private void handleS(Record<String, MessageEnvelope> record, String pid, int ordinal) {
         S incomingS = record.value().s();
+        long timestamp = eventTimestamp(record);
+        String dedupeKey = buildSDedupeKey(incomingS);
+        Long seenAt = tDedupeStore.get(dedupeKey);
+        if (seenAt != null && timestamp - seenAt <= DEDUPE_WINDOW_MILLIS) {
+            log.info("Skipping duplicate S id={} pid={} dedupeKey={} seenAt={} currentTs={}", incomingS.id(), pid, dedupeKey, seenAt, timestamp);
+            return;
+        }
+        tDedupeStore.put(dedupeKey, timestamp);
         emitDbSync(pid, DbSyncMutationType.ACCEPTED_S, null, incomingS, null, record, ordinal++);
         if (incomingS.q_carry() != 0L) {
             emitSWithQCarry(pid, incomingS, record.timestamp());
@@ -317,9 +325,18 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     }
 
     private void handleTs(Record<String, MessageEnvelope> record, String pid, int ordinalStart) {
-        log.info("Forwarding TS id={} pid={}", record.value().ts().id(), pid);
+        TS incomingTs = record.value().ts();
+        long timestamp = eventTimestamp(record);
+        String dedupeKey = buildTsDedupeKey(incomingTs);
+        Long seenAt = tDedupeStore.get(dedupeKey);
+        if (seenAt != null && timestamp - seenAt <= DEDUPE_WINDOW_MILLIS) {
+            log.info("Skipping duplicate TS id={} pid={} dedupeKey={} seenAt={} currentTs={}", incomingTs.id(), pid, dedupeKey, seenAt, timestamp);
+            return;
+        }
+        tDedupeStore.put(dedupeKey, timestamp);
+        log.info("Forwarding TS id={} pid={}", incomingTs.id(), pid);
         emitProcessed(pid, record.value(), record.timestamp());
-        emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, record.value().ts(), record, ordinalStart);
+        emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, incomingTs, record, ordinalStart);
     }
 
     private void persistUpdatedS(String pid, List<S> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
@@ -488,6 +505,14 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     private static String buildDedupeKey(T t) {
         return t.pid() + "|" + t.ref() + "|" + t.cancel();
+    }
+
+    private static String buildSDedupeKey(S s) {
+        return "S|" + s.pid() + "|" + s.refS() + "|false";
+    }
+
+    private static String buildTsDedupeKey(TS ts) {
+        return "TS|" + ts.pid() + "|" + ts.refTS() + "|" + ts.cancel();
     }
 
     private static String buildProcessedDedupeKey(String pid, String tid) {
