@@ -39,4 +39,5 @@ public final class SerdeFactory {
     public Serde<SBucket> sBucketSerde() {
         return new JsonSerde<>(objectMapper, SBucket.class);
     }
+
 }

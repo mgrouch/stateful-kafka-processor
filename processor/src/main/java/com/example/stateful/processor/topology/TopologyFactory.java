@@ -70,7 +70,6 @@ public final class TopologyFactory {
                 loggedStore(Stores.keyValueStoreBuilder(dedupeStoreSupplier, stringSerde, Serdes.Long())),
                 PROCESSOR
         );
-
         topology.addSink(
                 PROCESSED_SINK,
                 settings.outputTopic(),
