@@ -199,7 +199,7 @@ with
 \]
 $F$ is deterministic for fixed state and source metadata.
 
-\section{Incoming $T$: Exact Allocation Logic}\label{sec:incoming-t}
+\section{Incoming $T$: Allocation Logic}\label{sec:incoming-t}
 \begin{enumerate}[leftmargin=*]
   \item Build dedupe key $(p,ref,cancel)$.
   \item If seen within $W$, drop.
@@ -219,7 +219,7 @@ $F$ is deterministic for fixed state and source metadata.
 \end{enumerate}
 If $T$ becomes fully allocated ($q_{a,total}=q$), set $sDate$ to allocator $S.bDate$ when available.
 
-\section{Incoming $S$: Exact Allocation Logic}\label{sec:incoming-s}
+\section{Incoming $S$: Allocation Logic}\label{sec:incoming-s}
 \subsection{Important clarification}
 Yes, both incoming $T$ and incoming $S$ perform allocation, but \textbf{the strategy is not symmetric in ordering details}.
 Both use signed compatibility + ledger gating + residual-based updates, yet the priority scheduler for incoming $S$ is richer (bucketed).
@@ -269,7 +269,7 @@ The listed order is strict global priority:
 Earlier buckets consume residual before later buckets are considered.
 Therefore priority directly impacts which records close first and which remain open.
 
-\subsection{Exact bucket predicates (what each name means)}
+\subsection{Bucket predicates (what each name means)}
 Let candidate $T$ fields be:
 \[
 q_a \equiv T.q_{a,total},\qquad q_f \equiv T.q_f,\qquad tt \equiv T.tt.
