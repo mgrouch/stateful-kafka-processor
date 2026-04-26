@@ -504,7 +504,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     }
 
     private static String buildTDedupeKey(T t) {
-        return t.pid() + "|" + t.ref() + "|" + t.cancel();
+        return "T|" + t.pid() + "|" + t.ref() + "|" + t.cancel();
     }
 
     private static String buildSDedupeKey(S s) {
