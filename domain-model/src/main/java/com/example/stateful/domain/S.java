@@ -15,50 +15,53 @@ public record S(String id,
                 boolean o,
                 Dir dir,
                 SCycle sCycle,
-                Long ledgerTime) {
+                Long ledgerTime,
+                String refS) {
     public S(String id, String pid, long q, long q_a) {
-        this(id, pid, null, q, 0L, q_a, 0L, 0L, false, false, inferDir(q), SCycle.SD, null);
+        this(id, pid, null, q, 0L, q_a, 0L, 0L, false, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, long q, long q_a, boolean rollover) {
-        this(id, pid, null, q, 0L, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null);
+        this(id, pid, null, q, 0L, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, long q, long q_carry, long q_a, boolean rollover) {
-        this(id, pid, null, q, q_carry, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null);
+        this(id, pid, null, q, q_carry, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate, long q, long q_a) {
-        this(id, pid, bDate, q, 0L, q_a, 0L, 0L, false, false, inferDir(q), SCycle.SD, null);
+        this(id, pid, bDate, q, 0L, q_a, 0L, 0L, false, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate, long q, long q_a, boolean rollover) {
-        this(id, pid, bDate, q, 0L, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null);
+        this(id, pid, bDate, q, 0L, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate, long q, long q_carry, long q_a, boolean rollover) {
-        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null);
+        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate, long q, long q_carry, long q_a, boolean rollover, Dir dir) {
-        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, rollover, false, dir, SCycle.SD, null);
+        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, rollover, false, dir, SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate,
              long q, long q_carry, long q_a, long q_a_opposite_delta, long q_a_opposite_total,
              boolean rollover, Dir dir, Long ledgerTime) {
-        this(id, pid, bDate, q, q_carry, q_a, q_a_opposite_delta, q_a_opposite_total, rollover, false, dir, SCycle.SD, ledgerTime);
+        this(id, pid, bDate, q, q_carry, q_a, q_a_opposite_delta, q_a_opposite_total, rollover, false, dir, SCycle.SD, ledgerTime, null);
     }
 
     public S(String id, String pid, LocalDate bDate,
              long q, long q_carry, long q_a, long q_a_opposite_delta, long q_a_opposite_total,
              boolean rollover, boolean o, Dir dir, Long ledgerTime) {
-        this(id, pid, bDate, q, q_carry, q_a, q_a_opposite_delta, q_a_opposite_total, rollover, o, dir, SCycle.SD, ledgerTime);
+        this(id, pid, bDate, q, q_carry, q_a, q_a_opposite_delta, q_a_opposite_total, rollover, o, dir, SCycle.SD, ledgerTime, null);
     }
 
     public S {
         requireText(id, "id");
         requireText(pid, "pid");
+        refS = refS == null ? id : refS;
+        requireText(refS, "refS");
         dir = dir == null ? inferDir(q) : dir;
         sCycle = sCycle == null ? SCycle.SD : sCycle;
 

@@ -19,7 +19,7 @@ class TSTest {
 
         assertDoesNotThrow(() -> new TS(
                 "ts-1", "AAA", null, null, "t-1", "s-1", null, null, null,
-                null, null, 100L, 10L, 10L, TT.B, ActType.A01, MStatus.U, false, false, extraS
+                null, null, 100L, 10L, 10L, TT.B, ActType.A01, MStatus.U, false, false, extraS, null
         ));
     }
 
@@ -34,7 +34,15 @@ class TSTest {
 
         assertThrows(IllegalArgumentException.class, () -> new TS(
                 "ts-2", "AAA", null, null, "t-2", "s-2", null, null, null,
-                null, null, 100L, 10L, 10L, TT.B, ActType.A01, MStatus.U, false, false, extraS
+                null, null, 100L, 10L, 10L, TT.B, ActType.A01, MStatus.U, false, false, extraS, null
+        ));
+    }
+
+    @Test
+    void refTsMustNotBeBlankWhenProvided() {
+        assertThrows(IllegalArgumentException.class, () -> new TS(
+                "ts-3", "AAA", null, null, "t-3", "s-3", null, null, null,
+                null, null, 100L, 10L, 10L, TT.B, ActType.A01, MStatus.U, false, false, null, " "
         ));
     }
 }

@@ -38,6 +38,7 @@
       "fields": [
         {"name": "id", "type": {"type": "string", "maxLength": 64}},
         {"name": "pid", "type": {"type": "string", "maxLength": 64}},
+        {"name": "refS", "type": ["null", {"type": "string", "maxLength": 128}], "default": null},
         {"name": "bDate", "type": ["null", {"type": "int", "logicalType": "date"}], "default": null},
         {"name": "q", "type": "long"},
         {"name": "q_carry", "type": "long"},
@@ -57,6 +58,7 @@
       "fields": [
         {"name": "id", "type": {"type": "string", "maxLength": 64}},
         {"name": "pid", "type": {"type": "string", "maxLength": 64}},
+        {"name": "refTS", "type": ["null", {"type": "string", "maxLength": 128}], "default": null},
         {"name": "pidAlt1", "type": ["null", {"type": "string", "maxLength": 64}], "default": null},
         {"name": "pidAlt2", "type": ["null", {"type": "string", "maxLength": 64}], "default": null},
         {"name": "tid", "type": {"type": "string", "maxLength": 64}},

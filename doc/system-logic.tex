@@ -142,7 +142,7 @@ Constraints and defaults:
 \begin{definition}[Record $S$]
 \[
 \begin{aligned}
-S={}&(id,p,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},\\
+S={}&(id,p,refS,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},\\
 &\quad q_{a,opposite,total},rollover,dir,sCycle,ledgerTime).
 \end{aligned}
 \]
@@ -150,7 +150,7 @@ S={}&(id,p,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},\\
 
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
-  \item $id,p$ are non-empty text.
+  \item $id,p,refS$ are non-empty text.
   \item $dir\in\{D,R\}$; default from $q$ ($q<0\Rightarrow D$, $q>0\Rightarrow R$).
   \item $sCycle$ default $SD$.
   \item $rollover\in\{true,false\}$.
@@ -164,7 +164,7 @@ Constraints and defaults:
 \begin{definition}[Record $TS$]
 \[
 \begin{aligned}
-TS={}&(id,p,tid,sid,accId,tDate,sDate,q,q_{a,\Delta},\\
+TS={}&(id,p,refTS,tid,sid,accId,tDate,sDate,q,q_{a,\Delta},\\
 &\quad q_{a,total,after},tt,cancel).
 \end{aligned}
 \]
@@ -172,7 +172,7 @@ TS={}&(id,p,tid,sid,accId,tDate,sDate,q,q_{a,\Delta},\\
 
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
-  \item $id,p,tid,sid$ are non-empty text.
+  \item $id,p,refTS,tid,sid$ are non-empty text.
   \item $accId$ is optional but non-blank if present.
   \item $tt$ default $B$ if null.
   \item $cancel\in\{true,false\}$.
@@ -186,7 +186,12 @@ For each partition key $p$:
 \begin{itemize}[leftmargin=*]
   \item $\mathcal{T}_p$: open $T$ records.
   \item $\mathcal{S}_p$: open $S$ records.
-  \item $\mathcal{D}$: dedupe map for incoming $T$ keys $(p,ref,cancel)\mapsto firstSeenTs$.
+  \item $\mathcal{D}$: dedupe map for incoming keys:
+  \begin{itemize}[leftmargin=*]
+    \item $T$: $(p,ref,cancel)\mapsto firstSeenTs$
+    \item $S$: $(S,p,refS,false)\mapsto firstSeenTs$
+    \item $TS$: $(TS,p,refTS,cancel)\mapsto firstSeenTs$
+  \end{itemize}
   \item Processed-marker map entry for previously accepted non-cancel $T$: $(p,id,\texttt{processed})\mapsto firstSeenTs$.
 \end{itemize}
 Dedupe window is $W=14$ days.

@@ -90,7 +90,7 @@ public final class MessageEnvelopeAvroCodec {
 
     private static com.example.stateful.messaging.avro.S toAvro(S s) {
         return com.example.stateful.messaging.avro.S.newBuilder()
-                .setId(s.id()).setPid(s.pid()).setBDate(s.bDate()).setQ(s.q()).setQCarry(s.q_carry()).setQA(s.q_a())
+                .setId(s.id()).setPid(s.pid()).setRefS(s.refS()).setBDate(s.bDate()).setQ(s.q()).setQCarry(s.q_carry()).setQA(s.q_a())
                 .setQAOppositeDelta(s.q_a_opposite_delta()).setQAOppositeTotal(s.q_a_opposite_total())
                 .setRollover(s.rollover()).setO(s.o())
                 .setDir(com.example.stateful.messaging.avro.Dir.valueOf(s.dir().name()))
@@ -100,12 +100,12 @@ public final class MessageEnvelopeAvroCodec {
     }
 
     private static S fromAvro(com.example.stateful.messaging.avro.S s) {
-        return new S(s.getId(), s.getPid(), s.getBDate(), s.getQ(), s.getQCarry(), s.getQA(), s.getQAOppositeDelta(), s.getQAOppositeTotal(), s.getRollover(), s.getO(), Dir.valueOf(s.getDir().name()), SCycle.valueOf(s.getSCycle().name()), s.getLedgerTime());
+        return new S(s.getId(), s.getPid(), s.getBDate(), s.getQ(), s.getQCarry(), s.getQA(), s.getQAOppositeDelta(), s.getQAOppositeTotal(), s.getRollover(), s.getO(), Dir.valueOf(s.getDir().name()), SCycle.valueOf(s.getSCycle().name()), s.getLedgerTime(), nullable(s.getRefS()));
     }
 
     private static com.example.stateful.messaging.avro.TS toAvro(TS ts) {
         return com.example.stateful.messaging.avro.TS.newBuilder()
-                .setId(ts.id()).setPid(ts.pid()).setPidAlt1(ts.pidAlt1()).setPidAlt2(ts.pidAlt2())
+                .setId(ts.id()).setPid(ts.pid()).setRefTS(ts.refTS()).setPidAlt1(ts.pidAlt1()).setPidAlt2(ts.pidAlt2())
                 .setTid(ts.tid()).setSid(ts.sid()).setAccId(ts.accId()).setSorId(ts.sorId()).setOarId(ts.oarId())
                 .setTDate(ts.tDate()).setSDate(ts.sDate()).setQ(ts.q()).setQADelta(ts.q_a_delta()).setQATotalAfter(ts.q_a_total_after())
                 .setTt(com.example.stateful.messaging.avro.TT.valueOf(ts.tt().name()))
@@ -119,7 +119,7 @@ public final class MessageEnvelopeAvroCodec {
     private static TS fromAvro(com.example.stateful.messaging.avro.TS ts) {
         return new TS(ts.getId(), ts.getPid(), nullable(ts.getPidAlt1()), nullable(ts.getPidAlt2()), ts.getTid(), ts.getSid(), nullable(ts.getAccId()), nullable(ts.getSorId()), nullable(ts.getOarId()),
                 ts.getTDate(), ts.getSDate(), ts.getQ(), ts.getQADelta(), ts.getQATotalAfter(), TT.valueOf(ts.getTt().name()), ActType.valueOf(ts.getActivity().name()), MStatus.valueOf(ts.getMStatus().name()), ts.getO(), ts.getCancel(),
-                ts.getExtraS() == null ? null : ts.getExtraS().stream().map(MessageEnvelopeAvroCodec::fromAvro).toList());
+                ts.getExtraS() == null ? null : ts.getExtraS().stream().map(MessageEnvelopeAvroCodec::fromAvro).toList(), nullable(ts.getRefTS()));
     }
 
     private static String nullable(CharSequence value) {

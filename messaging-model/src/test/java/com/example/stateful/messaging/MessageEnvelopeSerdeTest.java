@@ -59,7 +59,7 @@ class MessageEnvelopeSerdeTest {
         );
         MessageEnvelope original = MessageEnvelope.forTS(new TS(
                 "ts-1", "AAA", null, null, "t-1", "s-1", null, null, null,
-                null, null, 99L, 12L, 12L, null, null, null, false, false, extraS));
+                null, null, 99L, 12L, 12L, null, null, null, false, false, extraS, null));
 
         byte[] bytes = MessageEnvelopeAvroCodec.serialize(original);
         MessageEnvelope parsed = MessageEnvelopeAvroCodec.deserialize(bytes);

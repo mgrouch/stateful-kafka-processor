@@ -23,13 +23,14 @@ public record TS(String id,
                  MStatus mStatus,
                  boolean o,
                  boolean cancel,
-                 List<S> extraS) {
+                 List<S> extraS,
+                 String refTS) {
     public TS(String id, String pid, String tid, String sid, long q, long q_a_delta) {
-        this(id, pid, null, null, tid, sid, null, null, null, null, null, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false, null);
+        this(id, pid, null, null, tid, sid, null, null, null, null, null, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false, null, null);
     }
 
     public TS(String id, String pid, String tid, String sid, LocalDate tDate, LocalDate sDate, long q, long q_a_delta) {
-        this(id, pid, null, null, tid, sid, null, null, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false, null);
+        this(id, pid, null, null, tid, sid, null, null, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false, null, null);
     }
 
     public TS(String id,
@@ -43,7 +44,7 @@ public record TS(String id,
               long q_a_delta,
               long q_a_total_after,
               TT tt) {
-        this(id, pid, null, null, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false, null);
+        this(id, pid, null, null, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false, null, null);
     }
 
     public TS(String id,
@@ -59,7 +60,7 @@ public record TS(String id,
               long q_a_delta,
               long q_a_total_after,
               TT tt) {
-        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false, null);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false, null, null);
     }
 
     public TS(String id,
@@ -76,7 +77,7 @@ public record TS(String id,
               long q_a_total_after,
               TT tt,
               boolean o) {
-        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null, null);
     }
 
     public TS(String id,
@@ -91,7 +92,7 @@ public record TS(String id,
               long q_a_total_after,
               TT tt,
               boolean o) {
-        this(id, pid, null, null, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null);
+        this(id, pid, null, null, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null, null);
     }
 
     public TS(String id,
@@ -110,7 +111,7 @@ public record TS(String id,
               long q_a_total_after,
               TT tt,
               boolean o) {
-        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, sorId, oarId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, sorId, oarId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null, null);
     }
 
     public TS(String id,
@@ -128,12 +129,14 @@ public record TS(String id,
               TT tt,
               boolean o,
               boolean cancel) {
-        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, cancel, null);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, cancel, null, null);
     }
 
     public TS {
         requireText(id, "id");
         requireText(pid, "pid");
+        refTS = refTS == null ? id : refTS;
+        requireText(refTS, "refTS");
         if (pidAlt1 != null && pidAlt1.isBlank()) {
             throw new IllegalArgumentException("pidAlt1 must not be blank when provided");
         }
