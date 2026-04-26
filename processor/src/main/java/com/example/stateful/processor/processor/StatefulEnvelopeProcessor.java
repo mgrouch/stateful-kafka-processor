@@ -82,7 +82,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     private void handleT(Record<String, MessageEnvelope> record, String pid, int ordinal) {
         T incomingT = record.value().t();
         long timestamp = eventTimestamp(record);
-        String dedupeKey = buildDedupeKey(incomingT);
+        String dedupeKey = buildTDedupeKey(incomingT);
         Long seenAt = tDedupeStore.get(dedupeKey);
 
         if (seenAt != null && timestamp - seenAt <= DEDUPE_WINDOW_MILLIS) {
@@ -503,7 +503,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         return record.timestamp() >= 0 ? record.timestamp() : context().currentSystemTimeMs();
     }
 
-    private static String buildDedupeKey(T t) {
+    private static String buildTDedupeKey(T t) {
         return t.pid() + "|" + t.ref() + "|" + t.cancel();
     }
 
