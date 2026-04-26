@@ -239,7 +239,7 @@ If a known $T$ exists and $q_{a,total}\neq 0$:
   \item Build pseudo-opposite $T$:
   \begin{itemize}[leftmargin=*]
     \item id prefix \texttt{cancel-comp-...},
-    \item quantity $q=-q_{a,total}^{known}$,
+    \item q $q=-q_{a,total}^{known}$,
     \item opposite $tt$ value ($B\leftrightarrow S$, $CS\leftrightarrow SS$),
     \item zero allocated totals at creation.
   \end{itemize}
@@ -249,7 +249,7 @@ If a known $T$ exists and $q_{a,total}\neq 0$:
   \hspace*{1.5em}\texttt{GENERATED\_TS} mutations.
   \item Persist updated $S$ plus pseudo-opposite $T$ as UPSERT/DELETE by residual.
 \end{enumerate}
-Intuition: this path ``unwinds'' previously allocated quantity via a synthetic opposite $T$ rather than rewriting prior $TS$ outputs.
+Intuition: this path ``unwinds'' previously allocated q via a synthetic opposite $T$ rather than rewriting prior $TS$ outputs.
 
 \section{Mutation Events}
 Each emitted mutation record carries:
