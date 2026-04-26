@@ -4,8 +4,10 @@ import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.Dir;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
+import com.example.stateful.domain.TS;
 import com.example.stateful.domain.TT;
 import com.example.stateful.messaging.DbSyncEnvelope;
+import com.example.stateful.messaging.DbSyncMutationType;
 import com.example.stateful.messaging.MessageEnvelope;
 import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
@@ -505,6 +507,30 @@ class TopologyFactoryTest {
             input.pipeInput("AAA", MessageEnvelope.forS(withCarry), t0.toEpochMilli());
 
             assertThat(carryOutput.readValue()).isEqualTo(MessageEnvelope.forS(withCarry));
+        }
+    }
+
+    @Test
+    void incomingTsIsPassedThroughAndRecordedAsGeneratedTsMutation() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+            TestOutputTopic<String, DbSyncEnvelope> dbSyncOutput = harness.dbSyncOutput(driver);
+
+            TS ts = new TS("ts-1", "AAA", "t-1", "s-1", 25L, 25L);
+            input.pipeInput("AAA", MessageEnvelope.forTS(ts), t0.toEpochMilli());
+
+            assertThat(output.readValue()).isEqualTo(MessageEnvelope.forTS(ts));
+            DbSyncEnvelope dbSyncEvent = dbSyncOutput.readValue();
+            assertThat(dbSyncEvent.mutationType()).isEqualTo(DbSyncMutationType.GENERATED_TS);
+            assertThat(dbSyncEvent.ts()).isEqualTo(ts);
+            assertThat(dbSyncEvent.sourceOffset()).isZero();
+            assertThat(dbSyncEvent.sourceTimestamp()).isEqualTo(t0.toEpochMilli());
+            assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA")).isNull();
+            assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA")).isNull();
         }
     }
 
