@@ -236,7 +236,9 @@ Both use signed compatibility + ledger gating + residual-based updates, yet the 
 
 \subsection{Flow}
 \begin{enumerate}[leftmargin=*]
-  \item Emit \texttt{ACCEPTED\_S}.
+  \item Build dedupe key $(S,p,refS,false)$.
+  \item If seen within $W$, drop.
+  \item Else write dedupe timestamp and emit \texttt{ACCEPTED\_S}.
   \item If $q_{carry}\neq 0$, forward to dedicated carry sink.
   \item Load all $T\in\mathcal{T}_p$.
   \item Run opposite-sign auto-allocation first over eligible pools (ledger-compatible only).
@@ -319,7 +321,12 @@ Within each bucket:
 Hence bucket order is fixed, and intra-bucket order is reproducible.
 
 \section{Incoming $TS$}
-Forward to processed output and emit mutation \texttt{GENERATED\_TS}.
+\begin{enumerate}[leftmargin=*]
+  \item Build dedupe key $(TS,p,refTS,cancel)$.
+  \item If seen within $W$, drop.
+  \item Else write dedupe timestamp.
+  \item Forward to processed output and emit mutation \texttt{GENERATED\_TS}.
+\end{enumerate}
 
 \section{Cancellation Semantics}\label{sec:cancellation}
 Cancellation is triggered only by incoming $T$ with $cancel=true$.
