@@ -5,6 +5,8 @@ import java.util.Objects;
 
 public record TS(String id,
                  String pid,
+                 String pidAlt1,
+                 String pidAlt2,
                  String tid,
                  String sid,
                  String accId,
@@ -19,11 +21,11 @@ public record TS(String id,
                  boolean o,
                  boolean cancel) {
     public TS(String id, String pid, String tid, String sid, long q, long q_a_delta) {
-        this(id, pid, tid, sid, null, null, null, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false);
+        this(id, pid, null, null, tid, sid, null, null, null, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false);
     }
 
     public TS(String id, String pid, String tid, String sid, LocalDate tDate, LocalDate sDate, long q, long q_a_delta) {
-        this(id, pid, tid, sid, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false);
+        this(id, pid, null, null, tid, sid, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false);
     }
 
     public TS(String id,
@@ -37,7 +39,40 @@ public record TS(String id,
               long q_a_delta,
               long q_a_total_after,
               TT tt) {
-        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false);
+        this(id, pid, null, null, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false);
+    }
+
+    public TS(String id,
+              String pid,
+              String pidAlt1,
+              String pidAlt2,
+              String tid,
+              String sid,
+              String accId,
+              LocalDate tDate,
+              LocalDate sDate,
+              long q,
+              long q_a_delta,
+              long q_a_total_after,
+              TT tt) {
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false);
+    }
+
+    public TS(String id,
+              String pid,
+              String pidAlt1,
+              String pidAlt2,
+              String tid,
+              String sid,
+              String accId,
+              LocalDate tDate,
+              LocalDate sDate,
+              long q,
+              long q_a_delta,
+              long q_a_total_after,
+              TT tt,
+              boolean o) {
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false);
     }
 
     public TS(String id,
@@ -52,11 +87,13 @@ public record TS(String id,
               long q_a_total_after,
               TT tt,
               boolean o) {
-        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false);
+        this(id, pid, null, null, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false);
     }
 
     public TS(String id,
               String pid,
+              String pidAlt1,
+              String pidAlt2,
               String tid,
               String sid,
               String accId,
@@ -68,12 +105,18 @@ public record TS(String id,
               TT tt,
               boolean o,
               boolean cancel) {
-        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, cancel);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, cancel);
     }
 
     public TS {
         requireText(id, "id");
         requireText(pid, "pid");
+        if (pidAlt1 != null && pidAlt1.isBlank()) {
+            throw new IllegalArgumentException("pidAlt1 must not be blank when provided");
+        }
+        if (pidAlt2 != null && pidAlt2.isBlank()) {
+            throw new IllegalArgumentException("pidAlt2 must not be blank when provided");
+        }
         requireText(tid, "tid");
         requireText(sid, "sid");
         if (accId != null && accId.isBlank()) {
