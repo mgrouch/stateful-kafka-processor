@@ -10,7 +10,7 @@
 \usepackage{ragged2e}
 \newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
 
-\title{Formal Transition System for \texorpdfstring{$T,S,TS$}{T,S,TS} (Implementation-Exact)}
+\title{Formal Transition System for \texorpdfstring{$T,S,TS$}{T,S,TS} (Implementation-Exact, Readable Version)}
 \author{Repository Documentation}
 \date{}
 
@@ -29,13 +29,18 @@
 
 \begin{document}
 \begin{abstract}
-This document specifies the current implementation exactly for records $T$, $S$, $TS$, signed allocation, ordering, deduplication, and emitted mutation events.
+This document describes the \emph{current code behavior} of the stateful processor in a human-readable way.
+It defines the exact record shapes ($T$, $S$, $TS$), allocation rules, ordering, deduplication, and emitted mutation events.
+It also spells out cancellation behavior explicitly, including both the simple cancellation path and the compensation path used when an already-allocated trade is canceled.
 \end{abstract}
 
 \maketitle
 
-\section{Symbols and Exact Record Shapes}
+\section{Scope and Notation}
 Fix partition keys $P$. All processing is per key $p\in P$.
+Every rule in this document is deterministic for a fixed input event, source metadata, and current state.
+
+\section{Symbols and Exact Record Shapes}
 
 \begin{definition}[Record $T$]
 \[
@@ -48,10 +53,12 @@ Constraints and defaults:
 \begin{itemize}[leftmargin=*]
   \item $id,p,ref$ are non-empty text.
   \item $pidAlt1,pidAlt2,accId,sorId,oarId$ are optional but non-blank if present.
-  \item $tt\in\{B,S,CS,SS\}$ with default $B$; $tCycle$ defaults to $SD$; $sMode$ defaults to $CN$; $a\_status\in\{NORM,FAIL\}$ defaults to $NORM$; $activity$ defaults to $A01$; $mStatus$ defaults to $U$.
+  \item $tt\in\{B,S,CS,SS\}$ with default $B$.
+  \item $tCycle$ defaults to $SD$; $sMode$ defaults to $CN$.
+  \item $a\_status\in\{NORM,FAIL\}$ defaults to $NORM$; $activity$ defaults to $A01$; $mStatus$ defaults to $U$.
   \item $q\neq 0$ and sign gate by $tt$: $tt\in\{B,CS\}\Rightarrow q>0$, $tt\in\{S,SS\}\Rightarrow q<0$.
-  \item $\operatorname{sgn}(q\_{a,total})\in\{0,\operatorname{sgn}(q)\}$, $|q\_{a,total}|\le |q|$.
-  \item $\operatorname{sgn}(q\_{a,\Delta,last})\in\{0,\operatorname{sgn}(q)\}$, $|q\_{a,\Delta,last}|\le |q|$.
+  \item $\operatorname{sgn}(q\_{a,total})\in\{0,\operatorname{sgn}(q)\}$ and $|q\_{a,total}|\le |q|$.
+  \item $\operatorname{sgn}(q\_{a,\Delta,last})\in\{0,\operatorname{sgn}(q)\}$ and $|q\_{a,\Delta,last}|\le |q|$.
   \item $a\_status=FAIL\Rightarrow q_f\neq 0$.
 \end{itemize}
 \end{definition}
@@ -66,9 +73,10 @@ S={}&(id,p,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},q_{a,opposite,total},\\
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
   \item $id,p$ are non-empty text.
-  \item $dir\in\{D,R\}$ with default from $q$ ($q<0\Rightarrow D$, $q>0\Rightarrow R$); $sCycle$ defaults to $SD$.
+  \item $dir\in\{D,R\}$ with default from $q$ ($q<0\Rightarrow D$, $q>0\Rightarrow R$).
+  \item $sCycle$ defaults to $SD$.
   \item $q+q_{carry}\neq 0$.
-  \item If $q\neq 0$ and $q_{carry}\neq 0$ then $\operatorname{sgn}(q)=\operatorname{sgn}(q_{carry})$.
+  \item If $q\neq 0$ and $q_{carry}\neq 0$, then $\operatorname{sgn}(q)=\operatorname{sgn}(q_{carry})$.
   \item $dir=D\Rightarrow q<0$, $dir=R\Rightarrow q>0$.
   \item $\operatorname{sgn}(q_a)\in\{0,\operatorname{sgn}(q+q_{carry})\}$ and $|q_a|\le |q+q_{carry}|$.
 \end{itemize}
@@ -92,17 +100,18 @@ Constraints and defaults:
 \end{itemize}
 \end{definition}
 
-\section{Residuals and Sign-Compatible Allocation}
+\section{Residuals and Signed Allocation}
+Residual (unallocated) quantity of a trade:
 \[
 R_T(T)=q-q_{a,total}.
 \]
-For $S$, define signed supply usage with carry-first consumption:
+For $S$, residual uses carry-first semantics:
 \[
 R_S(S)=R_{carry}(S)+R_{regular}(S),
 \]
-where usage magnitude $|q_a|$ consumes $|q_{carry}|$ first, then $|q|$.
+where allocation magnitude $|q_a|$ consumes $|q_{carry}|$ first, then $|q|$.
 
-Sign compatibility:
+Sign-compatibility predicate:
 \[
 Compat(x,y)\iff x\neq 0\land y\neq 0\land \operatorname{sgn}(x)=\operatorname{sgn}(y).
 \]
@@ -114,73 +123,115 @@ Alloc(x,y)=
 0, & \text{otherwise}.
 \end{cases}
 \]
-
-For any nonzero $\delta=Alloc(x,y)$, both sides are updated by $+\delta$ in their allocated counters.
+For any nonzero $\delta=Alloc(x,y)$, both sides move by $+\delta$ in their allocated counters.
 
 \section{Per-Key State}
-For each $p$:
+For each partition key $p$:
 \begin{itemize}[leftmargin=*]
-  \item $\mathcal{T}_p$: open $T$ collection.
-  \item $\mathcal{S}_p$: open $S$ collection.
+  \item $\mathcal{T}_p$: open $T$ records.
+  \item $\mathcal{S}_p$: open $S$ records.
   \item $\mathcal{D}$: dedupe map for incoming $T$ keys $(p,ref,cancel)\mapsto firstSeenTs$.
+  \item Processed-marker map entry for previously accepted non-cancel $T$: $(p,id,\texttt{processed})\mapsto firstSeenTs$.
 \end{itemize}
-Dedupe window is $W=14$ days (milliseconds in implementation).
+Dedupe window is $W=14$ days (in milliseconds in code).
 
-\section{Transition Steps}
-Each input kind is in $\{T,S,TS\}$. Transition is deterministic given source metadata and state.
-Default runtime strategy is \texttt{AutoAllocOppositeStrategy}.
+\section{High-Level Transition Flow}
+Each input kind is in $\{T,S,TS\}$.
+The runtime allocation strategy is \texttt{AutoAllocOppositeStrategy}.
 
-\subsection{Incoming $T$}
+\subsection{Incoming $T$ (normal path and cancel path)}
 \begin{enumerate}[leftmargin=*]
-  \item Build dedupe key $(p,ref,cancel)$; if seen within $W$, ignore input.
-  \item Else emit mutation \texttt{ACCEPTED\_T}.
-  \item If $cancel=true$ and an open stored $T$ with same id exists with $q_{a,total}=0$, force-close it, emit one cancel $TS$, and delete that $T$ from state.
-  \item Otherwise load all $S\in\mathcal{S}_p$.
-  \item Split by ledger/sign compatibility with current $R_T(T_{in})$ (ledger compatibility is $ledgerTime_T\le ledgerTime_S$ when both present).
-  \item Order compatible $S$ by $(\neg rollover,id)$ (thus $rollover=true$ first).
-  \item Iterate ordered compatible $S_j$:
-  \[
-  \delta_j=Alloc(R_T(T),R_S(S_j)).
-  \]
-  If $\delta_j\neq 0$, update
-  \[
-  q_{a,total}^{(T)}\gets q_{a,total}^{(T)}+\delta_j,\quad
-  q_{a,\Delta,last}^{(T)}\gets \delta_j,\quad
-  q_a^{(S_j)}\gets q_a^{(S_j)}+\delta_j,
-  \]
-  and emit
-  \[
-  \begin{aligned}
-  TS={}&(idPrefix\text{-}k,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,\\
-  &\quad bDate,q,\delta_j,q_{a,total}^{(T)},tt,o).
-  \end{aligned}
-  \]
-  \item Append incompatible $S$ unchanged.
-  \item Persist each updated $S$ as upsert/delete by open/closed residual.
-  \item Persist incoming $T$ as upsert/delete by open/closed residual.
+  \item Build dedupe key $(p,ref,cancel)$.
+  \item If already seen within $W$, drop the record.
+  \item Otherwise, store dedupe timestamp and emit mutation \texttt{ACCEPTED\_T}.
+  \item If $a\_status=FAIL$, also emit to the failed-$T$ sink.
+  \item If $cancel=true$, execute cancellation logic (Section~\ref{sec:cancellation}) and stop normal allocation.
+  \item If $cancel=false$, store processed marker $(p,id,\texttt{processed})$ and continue with normal allocation:
+  \begin{enumerate}[label=\alph*.,leftmargin=*]
+    \item Load all $S\in\mathcal{S}_p$.
+    \item Keep candidates that are sign-compatible with $R_T(T_{in})$ and ledger-compatible
+    ($ledgerTime_T\le ledgerTime_S$ when both are present).
+    \item Order compatible $S$ by $(\neg rollover,id)$, i.e., $rollover=true$ first.
+    \item For each ordered candidate $S_j$, compute
+    \[
+      \delta_j=Alloc(R_T(T),R_S(S_j)).
+    \]
+    If $\delta_j\neq 0$, update both sides and emit one $TS$.
+    \item Persist each updated $S$ as UPSERT or DELETE depending on open residual.
+    \item Persist incoming $T$ as UPSERT or DELETE depending on open residual.
+  \end{enumerate}
 \end{enumerate}
-Additionally, when a $T$ becomes fully allocated ($q_{a,total}=q$), set $sDate$ to allocation-side $bDate$ when that date is non-null; otherwise keep prior $sDate$.
+When a $T$ becomes fully allocated ($q_{a,total}=q$), set $sDate$ to the allocating $S.bDate$ when that date is non-null; otherwise keep prior $sDate$.
 
 \subsection{Incoming $S$}
 \begin{enumerate}[leftmargin=*]
-  \item Emit mutation \texttt{ACCEPTED\_S}. If $q_{carry}\neq 0$, also forward to the dedicated $S$-with-carry sink.
+  \item Emit mutation \texttt{ACCEPTED\_S}.
+  \item If $q_{carry}\neq 0$, also forward $S$ to dedicated ``$S$ with carry'' sink.
   \item Load all $T\in\mathcal{T}_p$.
-  \item Auto-allocate opposite-sign $T$ first over both ordered and untouched candidate pools, subject to ledger-time compatibility ($ledgerTime_T\le ledgerTime_S$ when both present): set $q_{a,total}\gets q$, set $q_{a,\Delta,last}\gets q-q_{a,total}^{old}$, emit $TS$ when delta is non-zero, and accumulate that delta into $S_{in}.q_{a,opposite,\Delta}$ and $S_{in}.q_{a,opposite,total}$.
-  \item Split remaining candidates by ledger/sign compatibility with updated residual $R_S(S_{in})$.
-  \item Canonically sort compatible $T$ by $id$, then partition into exact buckets:
-  \texttt{PARTIAL\_FAIL\_S}, \texttt{PARTIAL\_FAIL\_NON\_S}, \texttt{FULL\_FAIL\_S}, \texttt{FULL\_FAIL\_NON\_S}, \texttt{PARTIAL\_ALLOC\_S}, \texttt{PARTIAL\_ALLOC\_NON\_S}, \texttt{OPEN\_S}, \texttt{OPEN\_OTHER}.
-  \item For each bucket, deterministically shuffle only non-RT ($tCycle\neq RT$) entries with seed
+  \item Perform opposite-sign auto-allocation first (over ordered and untouched pools), subject to ledger compatibility
+  ($ledgerTime_T\le ledgerTime_S$ when both present). For each non-zero delta:
+  \begin{itemize}[leftmargin=*]
+    \item set candidate $T$ to fully allocated ($q_{a,total}\gets q$),
+    \item set $q_{a,\Delta,last}\gets q-q_{a,total}^{old}$,
+    \item emit $TS$,
+    \item accumulate delta in $S_{in}.q_{a,opposite,\Delta}$ and $S_{in}.q_{a,opposite,total}$.
+  \end{itemize}
+  \item With updated residual $R_S(S_{in})$, split remaining $T$ by ledger/sign compatibility.
+  \item Sort compatible $T$ by $id$, partition into buckets:
+  \texttt{PARTIAL\_FAIL\_S}, \texttt{PARTIAL\_FAIL\_NON\_S}, \texttt{FULL\_FAIL\_S},
+  \texttt{FULL\_FAIL\_NON\_S}, \texttt{PARTIAL\_ALLOC\_S}, \texttt{PARTIAL\_ALLOC\_NON\_S},
+  \texttt{OPEN\_S}, \texttt{OPEN\_OTHER}.
+  \item For each bucket, shuffle non-RT ($tCycle\neq RT$) deterministically with seed
   \[
   hash(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName),
   \]
-  then append RT entries in FIFO order by $(ledgerTime\ \text{nulls-last}, id)$.
-  \item Process buckets in the exact order listed above. For each selected $T_i$, apply signed update and emit $TS$ when $\delta\neq 0$.
-  \item Append incompatible remaining $T$ unchanged, then append already auto-allocated opposite-sign $T$.
-  \item Persist each updated $T$ as upsert/delete by open/closed residual.
-  \item Persist incoming $S$ as upsert/delete by open/closed residual.
+  then append RT entries FIFO by $(ledgerTime\ \text{nulls-last},id)$.
+  \item Process buckets exactly in listed order; emit $TS$ for each non-zero allocation.
+  \item Append incompatible untouched $T$, then append already auto-allocated opposite-sign $T$.
+  \item Persist updated $T$ and incoming $S$ as UPSERT/DELETE based on open residual.
 \end{enumerate}
+
 \subsection{Incoming $TS$}
 Forward to processed output and emit mutation \texttt{GENERATED\_TS}.
+
+\section{Cancellation Semantics (Explicit)}\label{sec:cancellation}
+Cancellation is triggered only when an incoming $T$ has $cancel=true$.
+The processor executes one of three outcomes:
+
+\subsection{Outcome A: Unknown cancel (ignored)}
+If there is no open $T$ with the same id \emph{and} no prior non-cancel processed marker for that id,
+the cancel event is ignored after \texttt{ACCEPTED\_T} (with warning log).
+
+\subsection{Outcome B: Direct cancel of unallocated trade}
+If a known trade exists and $q_{a,total}=0$:
+\begin{enumerate}[leftmargin=*]
+  \item Mark the known trade as canceled and fully allocated in one step ($q_{a,total}\gets q$).
+  \item Create a single cancel $TS$ with
+  \begin{itemize}[leftmargin=*]
+    \item $sid = \texttt{"cancel-"} + tid$,
+    \item $cancel=true$,
+    \item $q_{a,\Delta}=q-q_{a,total}^{old}$.
+  \end{itemize}
+  \item Emit that $TS$ as processed output and as \texttt{GENERATED\_TS} mutation.
+  \item If the trade was present in open state, remove it and emit \texttt{DELETE\_UNPROCESSED\_T}.
+\end{enumerate}
+
+\subsection{Outcome C: Compensation cancel of already-allocated trade}
+If a known trade exists and $q_{a,total}\neq 0$:
+\begin{enumerate}[leftmargin=*]
+  \item Build pseudo-opposite $T$:
+  \begin{itemize}[leftmargin=*]
+    \item id prefix \texttt{cancel-comp-...},
+    \item quantity $q=-q_{a,total}^{known}$,
+    \item opposite trade type ($B\leftrightarrow S$, $CS\leftrightarrow SS$),
+    \item zero allocated totals at creation.
+  \end{itemize}
+  \item If original open trade exists, delete it from open state and emit \texttt{DELETE\_UNPROCESSED\_T} for the canceled version.
+  \item Run normal incoming-$T$ allocation using the pseudo-opposite trade against open $S$.
+  \item Emit all generated compensation $TS$ events and matching \texttt{GENERATED\_TS} mutations.
+  \item Persist updated $S$ plus pseudo-opposite $T$ as UPSERT/DELETE by residual.
+\end{enumerate}
+Intuition: this path ``unwinds'' previously allocated quantity via a synthetic opposite trade instead of force-closing historical allocations.
 
 \section{Mutation Events}
 Each emitted mutation record carries:
