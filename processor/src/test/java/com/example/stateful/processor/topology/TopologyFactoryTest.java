@@ -86,10 +86,29 @@ class TopologyFactoryTest {
             MessageEnvelope ts = output.readValue();
             assertThat(ts.ts().q_a_delta()).isEqualTo(40L);
             assertThat(ts.ts().q_a_total_after()).isEqualTo(40L);
+            assertThat(ts.ts().o()).isFalse();
             T t = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items().get(0);
             assertThat(t.q_a_total()).isEqualTo(40L);
             assertThat(t.q_a_delta_last()).isEqualTo(40L);
             assertThat(driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items()).isEmpty();
+        }
+    }
+
+    @Test
+    void supplyOFlagPropagatesToGeneratedTs() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
+
+            S flaggedSupply = new S("s-o", "AAA", null, 40L, 0L, 0L, 0L, 0L, false, true, Dir.R, null);
+            input.pipeInput("AAA", MessageEnvelope.forS(flaggedSupply), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
+
+            MessageEnvelope ts = output.readValue();
+            assertThat(ts.ts().o()).isTrue();
         }
     }
 

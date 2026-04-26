@@ -14,13 +14,14 @@ public record TS(String id,
                  long q_a_delta,
                  long q_a_total_after,
                  TT tt,
+                 boolean o,
                  boolean cancel) {
     public TS(String id, String pid, String tid, String sid, long q, long q_a_delta) {
-        this(id, pid, tid, sid, null, null, null, q, q_a_delta, q_a_delta, TT.B, false);
+        this(id, pid, tid, sid, null, null, null, q, q_a_delta, q_a_delta, TT.B, false, false);
     }
 
     public TS(String id, String pid, String tid, String sid, LocalDate tDate, LocalDate sDate, long q, long q_a_delta) {
-        this(id, pid, tid, sid, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, false);
+        this(id, pid, tid, sid, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, false, false);
     }
 
     public TS(String id,
@@ -34,7 +35,22 @@ public record TS(String id,
               long q_a_delta,
               long q_a_total_after,
               TT tt) {
-        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, false);
+        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, false, false);
+    }
+
+    public TS(String id,
+              String pid,
+              String tid,
+              String sid,
+              String accId,
+              LocalDate tDate,
+              LocalDate sDate,
+              long q,
+              long q_a_delta,
+              long q_a_total_after,
+              TT tt,
+              boolean o) {
+        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, o, false);
     }
 
     public TS {

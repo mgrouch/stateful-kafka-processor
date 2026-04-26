@@ -159,6 +159,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
                 cancelDelta,
                 processedTrade.q_a_total(),
                 processedTrade.tt(),
+                false,
                 true
         );
 

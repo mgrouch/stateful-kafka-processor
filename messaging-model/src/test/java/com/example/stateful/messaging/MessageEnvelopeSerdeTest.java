@@ -55,6 +55,7 @@ class MessageEnvelopeSerdeTest {
         assertEquals(9L, parsed.s().q_carry());
         assertEquals(8L, parsed.s().q_a());
         assertTrue(parsed.s().rollover());
+        assertFalse(parsed.s().o());
     }
 
     @Test
@@ -74,6 +75,7 @@ class MessageEnvelopeSerdeTest {
         assertEquals("s-1", parsed.ts().sid());
         assertEquals(12L, parsed.ts().q_a_delta());
         assertEquals(12L, parsed.ts().q_a_total_after());
+        assertFalse(parsed.ts().o());
         assertFalse(parsed.ts().cancel());
     }
 }
