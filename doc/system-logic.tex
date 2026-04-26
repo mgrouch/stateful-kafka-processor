@@ -53,8 +53,9 @@ Every rule in this document is deterministic for a fixed input event, source met
 \begin{definition}[Record $T$]
 \[
 \begin{aligned}
-T={}&(id,p,ref,accId,tt,tDate,sDate,tCycle,sMode,a\_status,cancel,q,\\
-&\quad q\_{a,total},q\_{a,\Delta,last},q_f,ledgerTime).
+T={}&(id,p,ref,accId,tt,tDate,sDate,tCycle,\\
+&\quad sMode,a\_status,cancel,q,q\_{a,total},\\
+&\quad q\_{a,\Delta,last},q_f,ledgerTime).
 \end{aligned}
 \]
 Constraints and defaults:
@@ -228,7 +229,8 @@ If a known $T$ exists and $q_{a,total}=0$:
     \item $q_{a,\Delta}=q-q_{a,total}^{old}$.
   \end{itemize}
   \item Emit that $TS$ as processed output and as \texttt{GENERATED\_TS} mutation.
-  \item If that $T$ was present in open state, remove it and emit \texttt{DELETE\_UNPROCESSED\_T}.
+  \item If that $T$ was present in open state, remove it and emit\\
+  \hspace*{1.5em}\texttt{DELETE\_UNPROCESSED\_T}.
 \end{enumerate}
 
 \subsection{Outcome C: Compensation cancel of already-allocated $T$}
@@ -243,7 +245,8 @@ If a known $T$ exists and $q_{a,total}\neq 0$:
   \end{itemize}
   \item If original open $T$ exists, delete it from open state and emit \texttt{DELETE\_UNPROCESSED\_T} for the canceled version.
   \item Run normal incoming-$T$ allocation using the pseudo-opposite $T$ against open $S$.
-  \item Emit all generated compensation $TS$ events and matching \texttt{GENERATED\_TS} mutations.
+  \item Emit all generated compensation $TS$ events and matching\\
+  \hspace*{1.5em}\texttt{GENERATED\_TS} mutations.
   \item Persist updated $S$ plus pseudo-opposite $T$ as UPSERT/DELETE by residual.
 \end{enumerate}
 Intuition: this path ``unwinds'' previously allocated quantity via a synthetic opposite $T$ rather than rewriting prior $TS$ outputs.
