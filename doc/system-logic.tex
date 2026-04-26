@@ -55,18 +55,17 @@ Every rule in this document is deterministic for a fixed input event, source met
 \begin{definition}[Record $T$]
 \[
 \begin{aligned}
-T={}&(id,p,pidAlt1,pidAlt2,ref,accId,sorId,oarId,tt,tDate,sDate,\\
-&\quad tCycle,sMode,a\_status,activity,mStatus,cancel,q,\\
+T={}&(id,p,ref,accId,tt,tDate,sDate,tCycle,sMode,a\_status,cancel,q,\\
 &\quad q\_{a,total},q\_{a,\Delta,last},q_f,ledgerTime).
 \end{aligned}
 \]
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
   \item $id,p,ref$ are non-empty text.
-  \item $pidAlt1,pidAlt2,accId,sorId,oarId$ are optional but non-blank if present.
+  \item $accId$ is optional but non-blank if present.
   \item $tt\in\{B,S,CS,SS\}$ with default $B$.
   \item $tCycle$ defaults to $SD$; $sMode$ defaults to $CN$.
-  \item $a\_status\in\{NORM,FAIL\}$ defaults to $NORM$; $activity$ defaults to $A01$; $mStatus$ defaults to $U$.
+  \item $a\_status\in\{NORM,FAIL\}$ defaults to $NORM$.
   \item $q\neq 0$ and sign gate by $tt$: $tt\in\{B,CS\}\Rightarrow q>0$, $tt\in\{S,SS\}\Rightarrow q<0$.
   \item $\operatorname{sgn}(q\_{a,total})\in\{0,\operatorname{sgn}(q)\}$ and $|q\_{a,total}|\le |q|$.
   \item $\operatorname{sgn}(q\_{a,\Delta,last})\in\{0,\operatorname{sgn}(q)\}$ and $|q\_{a,\Delta,last}|\le |q|$.
@@ -96,15 +95,15 @@ Constraints and defaults:
 \begin{definition}[Record $TS$]
 \[
 \begin{aligned}
-TS={}&(id,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,sDate,\\
-&\quad q,q_{a,\Delta},q_{a,total,after},tt,activity,mStatus,o,cancel).
+TS={}&(id,p,tid,sid,accId,tDate,sDate,q,q_{a,\Delta},\\
+&\quad q_{a,total,after},tt,cancel).
 \end{aligned}
 \]
 Constraints and defaults:
 \begin{itemize}[leftmargin=*]
   \item $id,p,tid,sid$ are non-empty text.
-  \item $pidAlt1,pidAlt2,accId,sorId,oarId$ are optional but non-blank if present.
-  \item $tt$ defaults to $B$ when null; $activity$ defaults to $A01$; $mStatus$ defaults to $U$.
+  \item $accId$ is optional but non-blank if present.
+  \item $tt$ defaults to $B$ when null.
   \item $q\neq 0$.
   \item $\operatorname{sgn}(q_{a,\Delta})=\operatorname{sgn}(q)$ and $|q_{a,\Delta}|\le |q|$.
   \item $\operatorname{sgn}(q_{a,total,after})\in\{0,\operatorname{sgn}(q)\}$ and $|q_{a,total,after}|\le |q|$.
@@ -189,9 +188,12 @@ When a $T$ becomes fully allocated ($q_{a,total}=q$), set $sDate$ to the allocat
   \end{itemize}
   \item With updated residual $R_S(S_{in})$, split remaining $T$ by ledger/sign compatibility.
   \item Sort compatible $T$ by $id$, partition into buckets:
-  \texttt{PARTIAL\_FAIL\_S}, \texttt{PARTIAL\_FAIL\_NON\_S}, \texttt{FULL\_FAIL\_S},
-  \texttt{FULL\_FAIL\_NON\_S}, \texttt{PARTIAL\_ALLOC\_S}, \texttt{PARTIAL\_ALLOC\_NON\_S},
-  \texttt{OPEN\_S}, \texttt{OPEN\_OTHER}.
+  \begin{itemize}[leftmargin=1.5em]
+    \item \texttt{PARTIAL\_FAIL\_S}, \texttt{PARTIAL\_FAIL\_NON\_S}
+    \item \texttt{FULL\_FAIL\_S}, \texttt{FULL\_FAIL\_NON\_S}
+    \item \texttt{PARTIAL\_ALLOC\_S}, \texttt{PARTIAL\_ALLOC\_NON\_S}
+    \item \texttt{OPEN\_S}, \texttt{OPEN\_OTHER}
+  \end{itemize}
   \item For each bucket, shuffle non-RT ($tCycle\neq RT$) deterministically with seed
   \[
   \begin{aligned}
