@@ -70,7 +70,7 @@ class AutoAllocOppositeStrategyTest {
 
 
     @Test
-    void orderTCandidatesForIncomingSUsesFifoForRtWithinBucketByLedgerTime() {
+    void orderTCandidatesForIncomingSPrioritizesSdBeforeRtAndUsesFifoWithinRt() {
         AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
         S incomingS = new S("s-1", "PID", 100L, 0L);
 
@@ -82,7 +82,7 @@ class AutoAllocOppositeStrategyTest {
 
         List<String> order = strategy.orderTCandidatesForIncomingS(candidates, incomingS).stream().map(T::id).toList();
 
-        assertThat(order.subList(0, 2)).containsExactly("rt-1", "rt-2");
+        assertThat(order).containsExactly("sd-1", "rt-1", "rt-2");
     }
     private static T t(String id, TT tt, long q, long qATotal, long qF, AStatus status, TCycle tCycle, Long ledgerTime) {
         long normalizedQ = (tt == TT.S || tt == TT.SS) ? -Math.abs(q) : Math.abs(q);
