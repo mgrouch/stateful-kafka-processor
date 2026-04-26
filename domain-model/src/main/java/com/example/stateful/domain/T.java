@@ -4,65 +4,72 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 public record T(String id, String pid, String pidAlt1, String pidAlt2, String ref, String accId,
+                String sorId, String oarId,
                 TT tt, LocalDate tDate, LocalDate sDate, TCycle tCycle, SMode sMode, AStatus a_status, ActType activity, MStatus mStatus, boolean cancel,
                 long q, long q_a_total, long q_a_delta_last, long q_f,
                 Long ledgerTime
 ) {
     public T(String id, String pid, String ref, boolean cancel, long q, long q_a_total) {
-        this(id, pid, null, null, ref, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
+        this(id, pid, null, null, ref, null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
     }
 
     public T(String id, String pid, String ref, boolean cancel, long q, long q_a_total, AStatus a_status) {
-        this(id, pid, null, null, ref, null, TT.B, null, null, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
+        this(id, pid, null, null, ref, null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total) {
-        this(id, pid, null, null, ref, null, TT.B, tDate, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
+        this(id, pid, null, null, ref, null, null, null, TT.B, tDate, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total, AStatus a_status) {
-        this(id, pid, null, null, ref, null, TT.B, tDate, null, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
+        this(id, pid, null, null, ref, null, null, null, TT.B, tDate, null, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, boolean cancel, long q, long q_a_total, AStatus a_status, TT tt) {
-        this(id, pid, null, null, ref, null, tt, tDate, null, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
+        this(id, pid, null, null, ref, null, null, null, tt, tDate, null, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, 0L, 0L, null);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, LocalDate sDate, boolean cancel, long q, long q_a_total, long q_a_delta_last, AStatus a_status, TT tt) {
-        this(id, pid, null, null, ref, null, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, 0L, null);
+        this(id, pid, null, null, ref, null, null, null, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, 0L, null);
     }
 
     public T(String id, String pid, String ref, LocalDate tDate, LocalDate sDate, boolean cancel, long q, long q_a_total, long q_a_delta_last, long q_f, AStatus a_status, TT tt) {
-        this(id, pid, null, null, ref, null, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, null);
+        this(id, pid, null, null, ref, null, null, null, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, null);
     }
 
     public T(String id, String pid, String ref, String accId,
              TT tt, LocalDate tDate, LocalDate sDate, AStatus a_status, boolean cancel,
              long q, long q_a_total, long q_a_delta_last, long q_f) {
-        this(id, pid, null, null, ref, accId, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, null);
+        this(id, pid, null, null, ref, accId, null, null, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, null);
     }
     public T(String id, String pid, String pidAlt1, String pidAlt2, String ref, String accId,
              TT tt, LocalDate tDate, LocalDate sDate, AStatus a_status, boolean cancel,
              long q, long q_a_total, long q_a_delta_last, long q_f) {
-        this(id, pid, pidAlt1, pidAlt2, ref, accId, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, null);
+        this(id, pid, pidAlt1, pidAlt2, ref, accId, null, null, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, null);
     }
 
     public T(String id, String pid, String ref, String accId,
              TT tt, LocalDate tDate, LocalDate sDate, AStatus a_status, boolean cancel,
              long q, long q_a_total, long q_a_delta_last, long q_f, Long ledgerTime) {
-        this(id, pid, null, null, ref, accId, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, ledgerTime);
+        this(id, pid, null, null, ref, accId, null, null, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, ledgerTime);
     }
     public T(String id, String pid, String pidAlt1, String pidAlt2, String ref, String accId,
              TT tt, LocalDate tDate, LocalDate sDate, AStatus a_status, boolean cancel,
              long q, long q_a_total, long q_a_delta_last, long q_f, Long ledgerTime) {
-        this(id, pid, pidAlt1, pidAlt2, ref, accId, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, ledgerTime);
+        this(id, pid, pidAlt1, pidAlt2, ref, accId, null, null, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, ledgerTime);
+    }
+
+    public T(String id, String pid, String pidAlt1, String pidAlt2, String ref, String accId, String sorId, String oarId,
+             TT tt, LocalDate tDate, LocalDate sDate, AStatus a_status, boolean cancel,
+             long q, long q_a_total, long q_a_delta_last, long q_f, Long ledgerTime) {
+        this(id, pid, pidAlt1, pidAlt2, ref, accId, sorId, oarId, tt, tDate, sDate, TCycle.SD, SMode.CN, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, ledgerTime);
     }
 
     public T(String id, String pid, String ref, String accId,
              TT tt, LocalDate tDate, LocalDate sDate, TCycle tCycle, SMode sMode, AStatus a_status, boolean cancel,
              long q, long q_a_total, long q_a_delta_last, long q_f,
              Long ledgerTime) {
-        this(id, pid, null, null, ref, accId, tt, tDate, sDate, tCycle, sMode, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, ledgerTime);
+        this(id, pid, null, null, ref, accId, null, null, tt, tDate, sDate, tCycle, sMode, a_status, ActType.A01, MStatus.U, cancel, q, q_a_total, q_a_delta_last, q_f, ledgerTime);
     }
 
     public T {
@@ -80,6 +87,12 @@ public record T(String id, String pid, String pidAlt1, String pidAlt2, String re
         mStatus = mStatus == null ? MStatus.U : mStatus;
         if (accId != null && accId.isBlank()) {
             throw new IllegalArgumentException("accId must not be blank when provided");
+        }
+        if (sorId != null && sorId.isBlank()) {
+            throw new IllegalArgumentException("sorId must not be blank when provided");
+        }
+        if (oarId != null && oarId.isBlank()) {
+            throw new IllegalArgumentException("oarId must not be blank when provided");
         }
         tt = tt == null ? TT.B : tt;
         tCycle = tCycle == null ? TCycle.SD : tCycle;
