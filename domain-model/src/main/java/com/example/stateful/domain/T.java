@@ -1,13 +1,11 @@
 package com.example.stateful.domain;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
-
 import java.time.LocalDate;
 import java.util.Objects;
 
 public record T(String id, String pid, String ref, String accId,
                 TT tt, LocalDate tDate, LocalDate sDate, TCycle tCycle, SMode sMode, AStatus a_status, boolean cancel,
-                long q, @JsonAlias("q_a") long q_a_total, @JsonAlias("q_a_d") long q_a_delta_last, long q_f,
+                long q, long q_a_total, long q_a_delta_last, long q_f,
                 Long ledgerTime
 ) {
     public T(String id, String pid, String ref, boolean cancel, long q, long q_a_total) {
