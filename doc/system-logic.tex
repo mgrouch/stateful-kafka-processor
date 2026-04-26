@@ -32,11 +32,21 @@
 This document describes the \emph{current code behavior} of the stateful processor in a human-readable way.
 It defines the exact record shapes ($T$, $S$, $TS$), allocation rules, ordering, deduplication, and emitted mutation events.
 It also spells out cancellation behavior explicitly, including both the simple cancellation path and the compensation path used when an already-allocated trade is canceled.
+\par
+The goal is implementation-faithful documentation that can still be read quickly by engineers operating in a two-column paper format.
 \end{abstract}
 
 \maketitle
 
-\section{Scope and Notation}
+\section{Scope, Motivation, and Notation}
+This specification is intentionally \emph{behavior-first}: every rule is written to mirror runtime decisions that affect outputs, state transitions, and replay determinism.
+The method is structured this way for three practical reasons:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Deterministic replay.} Per-key state, deterministic ordering, and seeded shuffling make failures reproducible.
+  \item \textbf{Auditability.} Every accepted input leads to explicit mutations, so downstream systems can reconstruct why state changed.
+  \item \textbf{Safety under corrections.} Cancellation is handled as an explicit transition with compensation when needed, instead of silently rewriting history.
+\end{itemize}
+
 Fix partition keys $P$. All processing is per key $p\in P$.
 Every rule in this document is deterministic for a fixed input event, source metadata, and current state.
 
@@ -45,8 +55,9 @@ Every rule in this document is deterministic for a fixed input event, source met
 \begin{definition}[Record $T$]
 \[
 \begin{aligned}
-T={}&(id,p,pidAlt1,pidAlt2,ref,accId,sorId,oarId,tt,tDate,sDate,tCycle,\\
-&\quad sMode,a\_status,activity,mStatus,cancel,q,q\_{a,total},q\_{a,\Delta,last},q_f,ledgerTime).
+T={}&(id,p,pidAlt1,pidAlt2,ref,accId,sorId,oarId,tt,tDate,sDate,\\
+&\quad tCycle,sMode,a\_status,activity,mStatus,cancel,q,\\
+&\quad q\_{a,total},q\_{a,\Delta,last},q_f,ledgerTime).
 \end{aligned}
 \]
 Constraints and defaults:
@@ -66,8 +77,8 @@ Constraints and defaults:
 \begin{definition}[Record $S$]
 \[
 \begin{aligned}
-S={}&(id,p,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},q_{a,opposite,total},\\
-&\quad rollover,o,dir,sCycle,ledgerTime).
+S={}&(id,p,bDate,q,q_{carry},q_a,q_{a,opposite,\Delta},\\
+&\quad q_{a,opposite,total},rollover,o,dir,sCycle,ledgerTime).
 \end{aligned}
 \]
 Constraints and defaults:
@@ -85,8 +96,8 @@ Constraints and defaults:
 \begin{definition}[Record $TS$]
 \[
 \begin{aligned}
-TS={}&(id,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,sDate,q,q_{a,\Delta},\\
-&\quad q_{a,total,after},tt,activity,mStatus,o,cancel).
+TS={}&(id,p,pidAlt1,pidAlt2,tid,sid,accId,sorId,oarId,tDate,sDate,\\
+&\quad q,q_{a,\Delta},q_{a,total,after},tt,activity,mStatus,o,cancel).
 \end{aligned}
 \]
 Constraints and defaults:
@@ -119,7 +130,7 @@ Allocation primitive:
 \[
 Alloc(x,y)=
 \begin{cases}
-\operatorname{sgn}(x)\cdot \min(|x|,|y|), & Compat(x,y),\\
+\operatorname{sgn}(x)\cdot \min(|x|,|y|), & \text{if } Compat(x,y),\\
 0, & \text{otherwise}.
 \end{cases}
 \]
@@ -183,7 +194,11 @@ When a $T$ becomes fully allocated ($q_{a,total}=q$), set $sDate$ to the allocat
   \texttt{OPEN\_S}, \texttt{OPEN\_OTHER}.
   \item For each bucket, shuffle non-RT ($tCycle\neq RT$) deterministically with seed
   \[
-  hash(seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName),
+  \begin{aligned}
+  &hash(\\
+  &\quad seed_0,p,id_{in},\texttt{INCOMING\_S},bucketName\\
+  &).
+  \end{aligned}
   \]
   then append RT entries FIFO by $(ledgerTime\ \text{nulls-last},id)$.
   \item Process buckets exactly in listed order; emit $TS$ for each non-zero allocation.
@@ -237,13 +252,16 @@ Intuition: this path ``unwinds'' previously allocated quantity via a synthetic o
 Each emitted mutation record carries:
 \[
 \begin{aligned}
-(type,p,T?,S?,TS?,topic,partition,offset,timestamp,ordinal,\\
-\quad eventId).
+&(type,p,T?,S?,TS?,topic,partition,offset,\\
+&\quad timestamp,ordinal,eventId).
 \end{aligned}
 \]
 Event id is deterministic:
 \[
-eventId = topic\text{-}partition\text{-}offset\text{-}ordinal\text{-}type.
+\begin{aligned}
+eventId ={}& topic\text{-}partition\text{-}offset\\
+&\text{-}ordinal\text{-}type.
+\end{aligned}
 \]
 Mutation type set:
 \begin{itemize}[leftmargin=*]
@@ -269,7 +287,11 @@ All rewritten and emitted entities keep the same partition key $p$.
 
 \begin{proposition}[Bounded signed allocation]
 \[
-|q_{a,total}|\le |q|\ (T),\quad |q_a|\le |q+q_{carry}|\ (S),\quad |q_{a,\Delta}|,|q_{a,total,after}|\le |q|\ (TS).
+\begin{aligned}
+&|q_{a,total}|\le |q| \quad (T),\\
+&|q_a|\le |q+q_{carry}| \quad (S),\\
+&|q_{a,\Delta}|,|q_{a,total,after}|\le |q| \quad (TS).
+\end{aligned}
 \]
 \end{proposition}
 
