@@ -5,6 +5,7 @@ import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
 import com.example.stateful.domain.TT;
+import com.example.stateful.domain.TCycle;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -264,10 +265,25 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
     }
 
     private List<T> shuffleDeterministically(List<T> bucket, String pid, String incomingId, String direction, String bucketName) {
-        List<T> shuffled = new ArrayList<>(bucket);
+        List<T> fifoRt = bucket.stream()
+                .filter(candidate -> candidate.tCycle() == TCycle.RT)
+                .sorted(Comparator
+                        .comparing(T::ledgerTime, Comparator.nullsLast(Long::compareTo))
+                        .thenComparing(T::id))
+                .toList();
+
+        List<T> nonRt = bucket.stream()
+                .filter(candidate -> candidate.tCycle() != TCycle.RT)
+                .toList();
+
+        List<T> shuffled = new ArrayList<>(nonRt);
         long seed = deriveAllocationSeed(pid, incomingId, direction, bucketName);
         Collections.shuffle(shuffled, new Random(seed));
-        return shuffled;
+
+        List<T> ordered = new ArrayList<>(bucket.size());
+        ordered.addAll(fifoRt);
+        ordered.addAll(shuffled);
+        return ordered;
     }
 
     private long deriveAllocationSeed(String pid, String incomingId, String direction, String bucketName) {

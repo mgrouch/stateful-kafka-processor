@@ -4,6 +4,7 @@ import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TT;
+import com.example.stateful.domain.TCycle;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -64,8 +65,28 @@ class AutoAllocOppositeStrategyTest {
     }
 
     private static T t(String id, TT tt, long q, long qATotal, long qF, AStatus status) {
+        return t(id, tt, q, qATotal, qF, status, TCycle.SD, null);
+    }
+
+
+    @Test
+    void orderTCandidatesForIncomingSUsesFifoForRtWithinBucketByLedgerTime() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        S incomingS = new S("s-1", "PID", 100L, 0L);
+
+        List<T> candidates = List.of(
+                t("rt-2", TT.S, 10L, 2L, 1L, AStatus.FAIL, TCycle.RT, 200L),
+                t("sd-1", TT.S, 10L, 2L, 1L, AStatus.FAIL, TCycle.SD, 150L),
+                t("rt-1", TT.S, 10L, 2L, 1L, AStatus.FAIL, TCycle.RT, 100L)
+        );
+
+        List<String> order = strategy.orderTCandidatesForIncomingS(candidates, incomingS).stream().map(T::id).toList();
+
+        assertThat(order.subList(0, 2)).containsExactly("rt-1", "rt-2");
+    }
+    private static T t(String id, TT tt, long q, long qATotal, long qF, AStatus status, TCycle tCycle, Long ledgerTime) {
         long normalizedQ = (tt == TT.S || tt == TT.SS) ? -Math.abs(q) : Math.abs(q);
         long normalizedQATotal = qATotal == 0L ? 0L : Long.signum(normalizedQ) * Math.abs(qATotal);
-        return new T(id, "PID", "REF-" + id, null, tt, null, null, status, false, normalizedQ, normalizedQATotal, 0L, qF, null);
+        return new T(id, "PID", "REF-" + id, null, tt, null, null, tCycle, null, status, false, normalizedQ, normalizedQATotal, 0L, qF, ledgerTime);
     }
 }
