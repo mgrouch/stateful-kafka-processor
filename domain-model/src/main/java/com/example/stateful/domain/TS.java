@@ -1,6 +1,7 @@
 package com.example.stateful.domain;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 
 public record TS(String id,
@@ -21,13 +22,14 @@ public record TS(String id,
                  ActType activity,
                  MStatus mStatus,
                  boolean o,
-                 boolean cancel) {
+                 boolean cancel,
+                 List<S> extraS) {
     public TS(String id, String pid, String tid, String sid, long q, long q_a_delta) {
-        this(id, pid, null, null, tid, sid, null, null, null, null, null, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false);
+        this(id, pid, null, null, tid, sid, null, null, null, null, null, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false, null);
     }
 
     public TS(String id, String pid, String tid, String sid, LocalDate tDate, LocalDate sDate, long q, long q_a_delta) {
-        this(id, pid, null, null, tid, sid, null, null, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false);
+        this(id, pid, null, null, tid, sid, null, null, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false, null);
     }
 
     public TS(String id,
@@ -41,7 +43,7 @@ public record TS(String id,
               long q_a_delta,
               long q_a_total_after,
               TT tt) {
-        this(id, pid, null, null, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false);
+        this(id, pid, null, null, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false, null);
     }
 
     public TS(String id,
@@ -57,7 +59,7 @@ public record TS(String id,
               long q_a_delta,
               long q_a_total_after,
               TT tt) {
-        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false, null);
     }
 
     public TS(String id,
@@ -74,7 +76,7 @@ public record TS(String id,
               long q_a_total_after,
               TT tt,
               boolean o) {
-        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null);
     }
 
     public TS(String id,
@@ -89,7 +91,7 @@ public record TS(String id,
               long q_a_total_after,
               TT tt,
               boolean o) {
-        this(id, pid, null, null, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false);
+        this(id, pid, null, null, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null);
     }
 
     public TS(String id,
@@ -108,7 +110,7 @@ public record TS(String id,
               long q_a_total_after,
               TT tt,
               boolean o) {
-        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, sorId, oarId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, sorId, oarId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false, null);
     }
 
     public TS(String id,
@@ -126,7 +128,7 @@ public record TS(String id,
               TT tt,
               boolean o,
               boolean cancel) {
-        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, cancel);
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, null, null, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, cancel, null);
     }
 
     public TS {
@@ -152,6 +154,15 @@ public record TS(String id,
         tt = tt == null ? TT.B : tt;
         activity = activity == null ? ActType.A01 : activity;
         mStatus = mStatus == null ? MStatus.U : mStatus;
+        if (extraS != null) {
+            if (extraS.size() > 3) {
+                throw new IllegalArgumentException("extraS must contain at most 3 items");
+            }
+            if (extraS.stream().anyMatch(Objects::isNull)) {
+                throw new IllegalArgumentException("extraS must not contain null items");
+            }
+            extraS = List.copyOf(extraS);
+        }
         if (q == 0) {
             throw new IllegalArgumentException("q must not be 0");
         }

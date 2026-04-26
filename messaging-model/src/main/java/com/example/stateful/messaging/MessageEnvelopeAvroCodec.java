@@ -112,12 +112,14 @@ public final class MessageEnvelopeAvroCodec {
                 .setActivity(com.example.stateful.messaging.avro.ActType.valueOf(ts.activity().name()))
                 .setMStatus(com.example.stateful.messaging.avro.MStatus.valueOf(ts.mStatus().name()))
                 .setO(ts.o()).setCancel(ts.cancel())
+                .setExtraS(ts.extraS() == null ? null : ts.extraS().stream().map(MessageEnvelopeAvroCodec::toAvro).toList())
                 .build();
     }
 
     private static TS fromAvro(com.example.stateful.messaging.avro.TS ts) {
         return new TS(ts.getId(), ts.getPid(), nullable(ts.getPidAlt1()), nullable(ts.getPidAlt2()), ts.getTid(), ts.getSid(), nullable(ts.getAccId()), nullable(ts.getSorId()), nullable(ts.getOarId()),
-                ts.getTDate(), ts.getSDate(), ts.getQ(), ts.getQADelta(), ts.getQATotalAfter(), TT.valueOf(ts.getTt().name()), ActType.valueOf(ts.getActivity().name()), MStatus.valueOf(ts.getMStatus().name()), ts.getO(), ts.getCancel());
+                ts.getTDate(), ts.getSDate(), ts.getQ(), ts.getQADelta(), ts.getQATotalAfter(), TT.valueOf(ts.getTt().name()), ActType.valueOf(ts.getActivity().name()), MStatus.valueOf(ts.getMStatus().name()), ts.getO(), ts.getCancel(),
+                ts.getExtraS() == null ? null : ts.getExtraS().stream().map(MessageEnvelopeAvroCodec::fromAvro).toList());
     }
 
     private static String nullable(CharSequence value) {
