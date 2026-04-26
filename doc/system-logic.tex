@@ -23,6 +23,8 @@
 \acmConference{}{}{}
 \acmBooktitle{}
 \acmYear{}
+\settopmatter{printfolios=false}
+\pagestyle{empty}
 
 \newtheorem{definition}{Definition}
 \newtheorem{proposition}{Proposition}
@@ -190,7 +192,8 @@ For each partition key $p$:
 Dedupe window is $W=14$ days.
 
 \section{High-Level Transition Function}
-Each input kind is in $\{T,S,TS\}$ and processing uses \texttt{AutoAllocOppositeStrategy}.
+Each input kind is in $\{T,S,TS\}$ and processing uses
+\texttt{AutoAllocOpposite}\linebreak\texttt{Strategy}.
 Per key:
 \[
 \Sigma^{k+1}_p = F(\Sigma^k_p,e_k),
