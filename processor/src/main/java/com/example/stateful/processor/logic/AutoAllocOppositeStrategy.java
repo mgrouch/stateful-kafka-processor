@@ -119,10 +119,10 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         for (T candidate : orderedCandidates) {
             if (hasOppositeSign(candidate.q(), incomingS.q())) {
                 long delta = candidate.q() - candidate.q_a_total();
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.accId(), candidate.tt(), candidate.tDate(), candidate.sDate(), candidate.a_status(), candidate.cancel(), candidate.q(), candidate.q(), delta, candidate.q_f(), candidate.ledgerTime());
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.pidAlt1(), candidate.pidAlt2(), candidate.ref(), candidate.accId(), candidate.tt(), candidate.tDate(), candidate.sDate(), candidate.a_status(), candidate.cancel(), candidate.q(), candidate.q(), delta, candidate.q_f(), candidate.ledgerTime());
                 updatedOpposite.add(nextT);
                 if (delta != 0L) {
-                    emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.id(), incomingS.id(), nextT.accId(), nextT.tDate(), incomingS.bDate(), nextT.q(), delta, nextT.q_a_total(), nextT.tt(), incomingS.o()));
+                    emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.pidAlt1(), nextT.pidAlt2(), nextT.id(), incomingS.id(), nextT.accId(), nextT.tDate(), incomingS.bDate(), nextT.q(), delta, nextT.q_a_total(), nextT.tt(), incomingS.o()));
                 }
                 oppositeDelta += delta;
             } else {
@@ -133,10 +133,10 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         for (T candidate : untouchedCandidates) {
             if (hasOppositeSign(candidate.q(), incomingS.q())) {
                 long delta = candidate.q() - candidate.q_a_total();
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.accId(), candidate.tt(), candidate.tDate(), candidate.sDate(), candidate.a_status(), candidate.cancel(), candidate.q(), candidate.q(), delta, candidate.q_f(), candidate.ledgerTime());
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.pidAlt1(), candidate.pidAlt2(), candidate.ref(), candidate.accId(), candidate.tt(), candidate.tDate(), candidate.sDate(), candidate.a_status(), candidate.cancel(), candidate.q(), candidate.q(), delta, candidate.q_f(), candidate.ledgerTime());
                 updatedOpposite.add(nextT);
                 if (delta != 0L) {
-                    emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.id(), incomingS.id(), nextT.accId(), nextT.tDate(), incomingS.bDate(), nextT.q(), delta, nextT.q_a_total(), nextT.tt(), incomingS.o()));
+                    emitted.add(new TS(idPrefix + "-" + (++tsIndex), incomingS.pid(), nextT.pidAlt1(), nextT.pidAlt2(), nextT.id(), incomingS.id(), nextT.accId(), nextT.tDate(), incomingS.bDate(), nextT.q(), delta, nextT.q_a_total(), nextT.tt(), incomingS.o()));
                 }
                 oppositeDelta += delta;
             } else {
@@ -182,10 +182,10 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                 LocalDate allocatedSDate = nextTotal == candidate.q()
                         ? (updatedS.bDate() != null ? updatedS.bDate() : candidate.sDate())
                         : candidate.sDate();
-                T nextT = new T(candidate.id(), candidate.pid(), candidate.ref(), candidate.accId(), candidate.tt(), candidate.tDate(), allocatedSDate, candidate.a_status(), candidate.cancel(), candidate.q(), nextTotal, allocated, candidate.q_f(), candidate.ledgerTime());
+                T nextT = new T(candidate.id(), candidate.pid(), candidate.pidAlt1(), candidate.pidAlt2(), candidate.ref(), candidate.accId(), candidate.tt(), candidate.tDate(), allocatedSDate, candidate.a_status(), candidate.cancel(), candidate.q(), nextTotal, allocated, candidate.q_f(), candidate.ledgerTime());
                 updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.bDate(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.q_a_opposite_delta(), updatedS.q_a_opposite_total(), updatedS.rollover(), updatedS.o(), updatedS.dir(), updatedS.ledgerTime());
                 updatedT.add(nextT);
-                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.id(), updatedS.id(), nextT.accId(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextTotal, nextT.tt(), updatedS.o()));
+                emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.pidAlt1(), nextT.pidAlt2(), nextT.id(), updatedS.id(), nextT.accId(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextTotal, nextT.tt(), updatedS.o()));
             } else {
                 updatedT.add(candidate);
             }
