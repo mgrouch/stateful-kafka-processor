@@ -14,14 +14,16 @@ public record TS(String id,
                  long q_a_delta,
                  long q_a_total_after,
                  TT tt,
+                 ActType activity,
+                 MStatus mStatus,
                  boolean o,
                  boolean cancel) {
     public TS(String id, String pid, String tid, String sid, long q, long q_a_delta) {
-        this(id, pid, tid, sid, null, null, null, q, q_a_delta, q_a_delta, TT.B, false, false);
+        this(id, pid, tid, sid, null, null, null, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false);
     }
 
     public TS(String id, String pid, String tid, String sid, LocalDate tDate, LocalDate sDate, long q, long q_a_delta) {
-        this(id, pid, tid, sid, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, false, false);
+        this(id, pid, tid, sid, null, tDate, sDate, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false);
     }
 
     public TS(String id,
@@ -35,7 +37,7 @@ public record TS(String id,
               long q_a_delta,
               long q_a_total_after,
               TT tt) {
-        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, false, false);
+        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, false, false);
     }
 
     public TS(String id,
@@ -50,7 +52,23 @@ public record TS(String id,
               long q_a_total_after,
               TT tt,
               boolean o) {
-        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, o, false);
+        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, false);
+    }
+
+    public TS(String id,
+              String pid,
+              String tid,
+              String sid,
+              String accId,
+              LocalDate tDate,
+              LocalDate sDate,
+              long q,
+              long q_a_delta,
+              long q_a_total_after,
+              TT tt,
+              boolean o,
+              boolean cancel) {
+        this(id, pid, tid, sid, accId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, ActType.A01, MStatus.U, o, cancel);
     }
 
     public TS {
@@ -62,6 +80,8 @@ public record TS(String id,
             throw new IllegalArgumentException("accId must not be blank when provided");
         }
         tt = tt == null ? TT.B : tt;
+        activity = activity == null ? ActType.A01 : activity;
+        mStatus = mStatus == null ? MStatus.U : mStatus;
         if (q == 0) {
             throw new IllegalArgumentException("q must not be 0");
         }
