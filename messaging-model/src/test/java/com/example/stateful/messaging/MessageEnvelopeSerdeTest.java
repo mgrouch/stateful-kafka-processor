@@ -6,8 +6,11 @@ import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MessageEnvelopeSerdeTest {
@@ -50,7 +53,13 @@ class MessageEnvelopeSerdeTest {
 
     @Test
     void tsEnvelopeRoundTripsAllocatedQuantity() {
-        MessageEnvelope original = MessageEnvelope.forTS(new TS("ts-1", "AAA", "t-1", "s-1", 99L, 12L));
+        List<S> extraS = List.of(
+                new S("s-2", "AAA", 10L, 0L),
+                new S("s-3", "AAA", 11L, 0L)
+        );
+        MessageEnvelope original = MessageEnvelope.forTS(new TS(
+                "ts-1", "AAA", null, null, "t-1", "s-1", null, null, null,
+                null, null, 99L, 12L, 12L, null, null, null, false, false, extraS));
 
         byte[] bytes = MessageEnvelopeAvroCodec.serialize(original);
         MessageEnvelope parsed = MessageEnvelopeAvroCodec.deserialize(bytes);
@@ -63,5 +72,9 @@ class MessageEnvelopeSerdeTest {
         assertEquals(12L, parsed.ts().q_a_total_after());
         assertFalse(parsed.ts().o());
         assertFalse(parsed.ts().cancel());
+        assertNotNull(parsed.ts().extraS());
+        assertEquals(2, parsed.ts().extraS().size());
+        assertEquals("s-2", parsed.ts().extraS().get(0).id());
+        assertEquals("s-3", parsed.ts().extraS().get(1).id());
     }
 }

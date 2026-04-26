@@ -73,7 +73,8 @@
         {"name": "activity", "type": "ActType"},
         {"name": "mStatus", "type": "MStatus"},
         {"name": "o", "type": "boolean"},
-        {"name": "cancel", "type": "boolean"}
+        {"name": "cancel", "type": "boolean"},
+        {"name": "extraS", "type": ["null", {"type": "array", "items": "S", "maxItems": 3}], "default": null}
       ]
     }], "default": null}
   ]
