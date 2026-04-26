@@ -1,5 +1,7 @@
 package com.example.stateful.domain;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -9,8 +11,8 @@ public record S(String id,
                 long q,
                 long q_carry,
                 long q_a,
-                long q_a_opposite_delta,
-                long q_a_opposite_total,
+                @JsonAlias("q_a_o_d") long q_a_opposite_delta,
+                @JsonAlias("q_a_o") long q_a_opposite_total,
                 boolean rollover,
                 Dir dir,
                 SCycle sCycle,

@@ -13,7 +13,7 @@ public record TS(String id,
                  LocalDate tDate,
                  LocalDate sDate,
                  long q,
-                 long q_a_delta,
+                 @JsonAlias("q_a_d") long q_a_delta,
                  @JsonAlias("q_a") long q_a_total_after,
                  TT tt,
                  boolean cancel) {

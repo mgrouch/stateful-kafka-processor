@@ -84,14 +84,21 @@ class MessageEnvelopeSerdeTest {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
         String tJson = """
-                {"kind":"T","t":{"id":"t-legacy","pid":"AAA","ref":"REF-1","cancel":false,"q":100,"q_a":40}}
+                {"kind":"T","t":{"id":"t-legacy","pid":"AAA","ref":"REF-1","cancel":false,"q":100,"q_a":40,"q_a_d":15}}
                 """;
         MessageEnvelope parsedT = mapper.readValue(tJson, MessageEnvelope.class);
         assertEquals(40L, parsedT.t().q_a_total());
-        assertEquals(0L, parsedT.t().q_a_delta_last());
+        assertEquals(15L, parsedT.t().q_a_delta_last());
+
+        String sJson = """
+                {"kind":"S","s":{"id":"s-legacy","pid":"AAA","q":100,"q_carry":0,"q_a":40,"q_a_o_d":-10,"q_a_o":-5,"rollover":false}}
+                """;
+        MessageEnvelope parsedS = mapper.readValue(sJson, MessageEnvelope.class);
+        assertEquals(-10L, parsedS.s().q_a_opposite_delta());
+        assertEquals(-5L, parsedS.s().q_a_opposite_total());
 
         String tsJson = """
-                {"kind":"TS","ts":{"id":"ts-legacy","pid":"AAA","tid":"t-legacy","sid":"s-legacy","q":100,"q_a_delta":30,"q_a":70}}
+                {"kind":"TS","ts":{"id":"ts-legacy","pid":"AAA","tid":"t-legacy","sid":"s-legacy","q":100,"q_a_d":30,"q_a":70}}
                 """;
         MessageEnvelope parsedTs = mapper.readValue(tsJson, MessageEnvelope.class);
         assertEquals(30L, parsedTs.ts().q_a_delta());
