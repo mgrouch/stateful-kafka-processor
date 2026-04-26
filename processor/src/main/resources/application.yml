@@ -3,6 +3,22 @@ spring:
     banner-mode: "off"
   kafka:
     bootstrap-servers: localhost:9093
+    properties:
+      security.protocol: SSL
+      ssl.endpoint.identification.algorithm: HTTPS
+      ssl.truststore.location: ""
+      ssl.truststore.password: ""
+      ssl.keystore.location: ""
+      ssl.keystore.password: ""
+      ssl.key.password: ""
+      schema.registry.url: https://localhost:8081
+      basic.auth.credentials.source: USER_INFO
+      basic.auth.user.info: ""
+      schema.registry.ssl.truststore.location: ""
+      schema.registry.ssl.truststore.password: ""
+      schema.registry.ssl.keystore.location: ""
+      schema.registry.ssl.keystore.password: ""
+      schema.registry.ssl.key.password: ""
 
 logging:
   level:
