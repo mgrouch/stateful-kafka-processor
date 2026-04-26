@@ -29,22 +29,22 @@
 
 \begin{document}
 \begin{abstract}
-This document describes the \emph{current code behavior} of the stateful processor in a human-readable way.
-It defines the exact record shapes ($T$, $S$, $TS$), allocation rules, ordering, deduplication, and emitted mutation events.
-It also spells out cancellation behavior explicitly, including both the simple cancellation path and the compensation path used when an already-allocated trade is canceled.
+This document describes the \emph{current code behavior} as an abstract transition system over $T$, $S$, and $TS$.
+It defines exact record shapes, deterministic allocation and ordering rules, deduplication behavior, and emitted mutation events.
+It also states cancellation transitions explicitly, including both direct cancellation and compensation cancellation paths.
 \par
-The goal is implementation-faithful documentation that can still be read quickly by engineers operating in a two-column paper format.
+The goal is implementation-faithful documentation that remains readable in a two-column format.
 \end{abstract}
 
 \maketitle
 
 \section{Scope, Motivation, and Notation}
-This specification is intentionally \emph{behavior-first}: every rule is written to mirror runtime decisions that affect outputs, state transitions, and replay determinism.
+This specification is intentionally \emph{behavior-first}: every rule mirrors runtime decisions over $T$, $S$, and $TS$ states and outputs.
 The method is structured this way for three practical reasons:
 \begin{itemize}[leftmargin=*]
-  \item \textbf{Deterministic replay.} Per-key state, deterministic ordering, and seeded shuffling make failures reproducible.
-  \item \textbf{Auditability.} Every accepted input leads to explicit mutations, so downstream systems can reconstruct why state changed.
-  \item \textbf{Safety under corrections.} Cancellation is handled as an explicit transition with compensation when needed, instead of silently rewriting history.
+  \item \textbf{Deterministic replay.} Per-key state, deterministic ordering, and seeded shuffling produce reproducible transitions.
+  \item \textbf{Auditability.} Accepted inputs map to explicit mutations, making state transitions reconstructible.
+  \item \textbf{Explicit correction semantics.} Cancellation is represented as defined transition outcomes, including compensation when required by current state.
 \end{itemize}
 
 Fix partition keys $P$. All processing is per key $p\in P$.
@@ -112,7 +112,7 @@ Constraints and defaults:
 \end{definition}
 
 \section{Residuals and Signed Allocation}
-Residual (unallocated) quantity of a trade:
+Residual (unallocated) quantity of a $T$ record:
 \[
 R_T(T)=q-q_{a,total}.
 \]
@@ -217,10 +217,10 @@ The processor executes one of three outcomes:
 If there is no open $T$ with the same id \emph{and} no prior non-cancel processed marker for that id,
 the cancel event is ignored after \texttt{ACCEPTED\_T} (with warning log).
 
-\subsection{Outcome B: Direct cancel of unallocated trade}
-If a known trade exists and $q_{a,total}=0$:
+\subsection{Outcome B: Direct cancel of unallocated $T$}
+If a known $T$ exists and $q_{a,total}=0$:
 \begin{enumerate}[leftmargin=*]
-  \item Mark the known trade as canceled and fully allocated in one step ($q_{a,total}\gets q$).
+  \item Mark the known $T$ as canceled and fully allocated in one step ($q_{a,total}\gets q$).
   \item Create a single cancel $TS$ with
   \begin{itemize}[leftmargin=*]
     \item $sid = \texttt{"cancel-"} + tid$,
@@ -228,25 +228,25 @@ If a known trade exists and $q_{a,total}=0$:
     \item $q_{a,\Delta}=q-q_{a,total}^{old}$.
   \end{itemize}
   \item Emit that $TS$ as processed output and as \texttt{GENERATED\_TS} mutation.
-  \item If the trade was present in open state, remove it and emit \texttt{DELETE\_UNPROCESSED\_T}.
+  \item If that $T$ was present in open state, remove it and emit \texttt{DELETE\_UNPROCESSED\_T}.
 \end{enumerate}
 
-\subsection{Outcome C: Compensation cancel of already-allocated trade}
-If a known trade exists and $q_{a,total}\neq 0$:
+\subsection{Outcome C: Compensation cancel of already-allocated $T$}
+If a known $T$ exists and $q_{a,total}\neq 0$:
 \begin{enumerate}[leftmargin=*]
   \item Build pseudo-opposite $T$:
   \begin{itemize}[leftmargin=*]
     \item id prefix \texttt{cancel-comp-...},
     \item quantity $q=-q_{a,total}^{known}$,
-    \item opposite trade type ($B\leftrightarrow S$, $CS\leftrightarrow SS$),
+    \item opposite $tt$ value ($B\leftrightarrow S$, $CS\leftrightarrow SS$),
     \item zero allocated totals at creation.
   \end{itemize}
-  \item If original open trade exists, delete it from open state and emit \texttt{DELETE\_UNPROCESSED\_T} for the canceled version.
-  \item Run normal incoming-$T$ allocation using the pseudo-opposite trade against open $S$.
+  \item If original open $T$ exists, delete it from open state and emit \texttt{DELETE\_UNPROCESSED\_T} for the canceled version.
+  \item Run normal incoming-$T$ allocation using the pseudo-opposite $T$ against open $S$.
   \item Emit all generated compensation $TS$ events and matching \texttt{GENERATED\_TS} mutations.
   \item Persist updated $S$ plus pseudo-opposite $T$ as UPSERT/DELETE by residual.
 \end{enumerate}
-Intuition: this path ``unwinds'' previously allocated quantity via a synthetic opposite trade instead of force-closing historical allocations.
+Intuition: this path ``unwinds'' previously allocated quantity via a synthetic opposite $T$ rather than rewriting prior $TS$ outputs.
 
 \section{Mutation Events}
 Each emitted mutation record carries:
