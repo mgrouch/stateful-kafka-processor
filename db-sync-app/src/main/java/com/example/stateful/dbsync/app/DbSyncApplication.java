@@ -13,9 +13,6 @@ import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.support.GenericApplicationContext;
 
 import javax.sql.DataSource;
-import java.util.Map;
-
-import static java.util.Map.entry;
 
 public final class DbSyncApplication {
 
@@ -29,20 +26,6 @@ public final class DbSyncApplication {
     public static SpringApplication createApplication() {
         SpringApplication application = new SpringApplication(DbSyncBootstrap.class);
         application.setWebApplicationType(WebApplicationType.NONE);
-        application.setDefaultProperties(Map.ofEntries(
-                entry("app.bootstrap-servers", "localhost:9093"),
-                entry("app.kafka.security-protocol", "SSL"),
-                entry("app.topic", "db-sync-events"),
-                entry("app.consumer-group", "db-sync-app"),
-                entry("app.client-id", "db-sync-app"),
-                entry("app.poll-timeout-ms", "500"),
-                entry("app.max-poll-records", "5000"),
-                entry("app.max-batch-records", "5000"),
-                entry("app.partition-discovery-interval-ms", "30000"),
-                entry("app.db.url", "jdbc:sqlserver://localhost:1433;databaseName=stateful"),
-                entry("app.db.user", "sa"),
-                entry("app.db.password", "YourStrong(!)Password")
-        ));
         application.addInitializers(context -> registerBeans((GenericApplicationContext) context));
         return application;
     }

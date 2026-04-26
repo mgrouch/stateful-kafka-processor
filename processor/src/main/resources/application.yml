@@ -1,0 +1,28 @@
+spring:
+  main:
+    banner-mode: "off"
+  kafka:
+    bootstrap-servers: localhost:9093
+
+logging:
+  level:
+    root: INFO
+
+allocation:
+  lottery:
+    seed: 1357911
+
+app:
+  application-id: stateful-data-processor
+  input-topic: input-events
+  output-topic: processed-events
+  db-sync-topic: db-sync-events
+  failed-t-topic: failed-t-events
+  s-with-q-carry-topic: s-with-q-carry-events
+  state-dir: processor/kafka-streams-state
+  commit-interval-ms: 100
+  streams:
+    replication-factor: 3
+    num-standby-replicas: 1
+  kafka:
+    security-protocol: SSL

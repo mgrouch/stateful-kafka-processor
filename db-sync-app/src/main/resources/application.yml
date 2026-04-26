@@ -1,0 +1,23 @@
+spring:
+  main:
+    banner-mode: "off"
+
+logging:
+  level:
+    com.example.stateful.dbsync: INFO
+
+app:
+  bootstrap-servers: localhost:9093
+  topic: db-sync-events
+  consumer-group: db-sync-app
+  client-id: db-sync-app
+  poll-timeout-ms: 500
+  max-poll-records: 5000
+  max-batch-records: 5000
+  partition-discovery-interval-ms: 30000
+  kafka:
+    security-protocol: SSL
+  db:
+    url: jdbc:sqlserver://localhost:1433;databaseName=stateful
+    user: sa
+    password: YourStrong(!)Password
