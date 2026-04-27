@@ -259,7 +259,7 @@ class TopologyFactoryTest {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
-        try (TopologyTestDriver driver = harness.driver(t0)) {
+        try (TopologyTestDriver driver = harness.driver(t0, new NaiveAlocationStrategy(1357911L))) {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
