@@ -387,6 +387,7 @@ class TopologyFactoryTest {
 
             S storedS = driver.<String, SBucket>getKeyValueStore(StateStores.UNPROCESSED_S_STORE).get("AAA").items().get(0);
             assertThat(storedS.q_a()).isEqualTo(8L);
+            assertThat(storedS.q_unalloc()).isEqualTo(12L);
             assertThat(storedS.q_a_opposite_delta()).isEqualTo(-10L);
             assertThat(storedS.q_a_opposite_total()).isEqualTo(-7L);
 

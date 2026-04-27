@@ -108,20 +108,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                 long tRemaining = TransitionsModel.remainingT(updatedT);
                 long sRemaining = TransitionsModel.remainingS(candidate);
                 long oppositeAllocated = allocateOpposite(tRemaining, sRemaining);
-                S nextS = new S(
-                        candidate.id(),
-                        candidate.pid(),
-                        candidate.bDate(),
-                        candidate.q(),
-                        candidate.q_carry(),
-                        candidate.q_a(),
-                        oppositeAllocated,
-                        candidate.q_a_opposite_total() + oppositeAllocated,
-                        candidate.rollover(),
-                        candidate.o(),
-                        candidate.dir(),
-                        candidate.ledgerTime()
-                );
+                S nextS = copyWithOppositeAllocation(candidate, oppositeAllocated);
                 updatedOpposite.add(nextS);
                 if (oppositeAllocated != 0L) {
                     long nextTotal = updatedT.q_a_total() + oppositeAllocated;
@@ -140,20 +127,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                 long tRemaining = TransitionsModel.remainingT(updatedT);
                 long sRemaining = TransitionsModel.remainingS(candidate);
                 long oppositeAllocated = allocateOpposite(tRemaining, sRemaining);
-                S nextS = new S(
-                        candidate.id(),
-                        candidate.pid(),
-                        candidate.bDate(),
-                        candidate.q(),
-                        candidate.q_carry(),
-                        candidate.q_a(),
-                        oppositeAllocated,
-                        candidate.q_a_opposite_total() + oppositeAllocated,
-                        candidate.rollover(),
-                        candidate.o(),
-                        candidate.dir(),
-                        candidate.ledgerTime()
-                );
+                S nextS = copyWithOppositeAllocation(candidate, oppositeAllocated);
                 updatedOpposite.add(nextS);
                 if (oppositeAllocated != 0L) {
                     long nextTotal = updatedT.q_a_total() + oppositeAllocated;
@@ -242,15 +216,19 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                 incomingS.q(),
                 incomingS.q_carry(),
                 incomingS.q_a(),
+                incomingS.q_unalloc(),
+                incomingS.q_unkn(),
                 oppositeDelta,
                 incomingS.q_a_opposite_total() + oppositeDelta,
                 incomingS.rollover(),
                 incomingS.o(),
                 incomingS.dir(),
-                incomingS.ledgerTime()
+                incomingS.sCycle(),
+                incomingS.ledgerTime(),
+                incomingS.refS()
         );
 
-        long incomingSOpen = TransitionsModel.remainingS(updatedS);
+        long incomingSOpen = updatedS.q() - updatedS.q_a_opposite_delta() - updatedS.q_a();
         S ledgerCheckedS = updatedS;
         List<T> signCompatible = regularOrdered.stream()
                 .filter(candidate -> isSModeCompatible(ledgerCheckedS, candidate))
@@ -269,7 +247,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
 
         List<T> updatedT = new ArrayList<>();
         for (T candidate : reorderedCompatible) {
-            long sRemaining = TransitionsModel.remainingS(updatedS);
+            long sRemaining = updatedS.q() - updatedS.q_a_opposite_delta() - updatedS.q_a();
             long tRemaining = TransitionsModel.remainingT(candidate);
             long allocated = allocate(sRemaining, tRemaining);
 
@@ -279,7 +257,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                         ? (updatedS.bDate() != null ? updatedS.bDate() : candidate.sDate())
                         : candidate.sDate();
                 T nextT = copyWithAllocation(candidate, nextTotal, allocated, allocatedSDate);
-                updatedS = new S(updatedS.id(), updatedS.pid(), updatedS.bDate(), updatedS.q(), updatedS.q_carry(), updatedS.q_a() + allocated, updatedS.q_a_opposite_delta(), updatedS.q_a_opposite_total(), updatedS.rollover(), updatedS.o(), updatedS.dir(), updatedS.ledgerTime());
+                updatedS = copyWithRegularAllocation(updatedS, updatedS.q_a() + allocated);
                 updatedT.add(nextT);
                 emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedS.pid(), nextT.pidAlt1(), nextT.pidAlt2(), nextT.id(), updatedS.id(), nextT.accId(), nextT.sorId(), nextT.oarId(), nextT.tDate(), updatedS.bDate(), nextT.q(), allocated, nextTotal, nextT.tt(), updatedS.o()));
             } else {
@@ -287,9 +265,75 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
             }
         }
 
+        long remainingEligible = updatedS.q() - updatedS.q_a_opposite_delta() - updatedS.q_a();
+        updatedS = copyWithRegularUnallocated(updatedS, remainingEligible);
+
         updatedT.addAll(combinedUntouched);
         updatedT.addAll(updatedOpposite);
         return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
+    }
+
+    private static S copyWithOppositeAllocation(S source, long oppositeAllocated) {
+        return new S(
+                source.id(),
+                source.pid(),
+                source.bDate(),
+                source.q(),
+                source.q_carry(),
+                source.q_a(),
+                source.q_unalloc(),
+                source.q_unkn(),
+                oppositeAllocated,
+                source.q_a_opposite_total() + oppositeAllocated,
+                source.rollover(),
+                source.o(),
+                source.dir(),
+                source.sCycle(),
+                source.ledgerTime(),
+                source.refS()
+        );
+    }
+
+    private static S copyWithRegularAllocation(S source, long qA) {
+        return new S(
+                source.id(),
+                source.pid(),
+                source.bDate(),
+                source.q(),
+                source.q_carry(),
+                qA,
+                source.q_unalloc(),
+                source.q_unkn(),
+                source.q_a_opposite_delta(),
+                source.q_a_opposite_total(),
+                source.rollover(),
+                source.o(),
+                source.dir(),
+                source.sCycle(),
+                source.ledgerTime(),
+                source.refS()
+        );
+    }
+
+    private static S copyWithRegularUnallocated(S source, long qUnalloc) {
+        return new S(
+                source.id(),
+                source.pid(),
+                source.bDate(),
+                source.q(),
+                source.q_carry(),
+                source.q_a(),
+                qUnalloc,
+                source.q_unkn(),
+                source.q_a_opposite_delta(),
+                source.q_a_opposite_total(),
+                source.rollover(),
+                source.o(),
+                source.dir(),
+                source.sCycle(),
+                source.ledgerTime(),
+                source.refS()
+        );
     }
 
 
