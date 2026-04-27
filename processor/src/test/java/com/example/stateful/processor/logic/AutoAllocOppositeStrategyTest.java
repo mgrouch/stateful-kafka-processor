@@ -3,6 +3,7 @@ package com.example.stateful.processor.logic;
 import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.Dir;
 import com.example.stateful.domain.S;
+import com.example.stateful.domain.SMode;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TT;
 import com.example.stateful.domain.TCycle;
@@ -133,9 +134,36 @@ class AutoAllocOppositeStrategyTest {
                 );
     }
 
+    @Test
+    void allocateForIncomingSIgnoresCandidatesWithDifferentSMode() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        S incomingS = new S("s-1", "PID", null, 10L, 0L, 0L, 0L, 0L, false, false, Dir.R, 100L);
+
+        T matchingMode = t("t-match", TT.B, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 100L, SMode.CN);
+        T differentMode = t("t-mismatch", TT.B, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 100L, SMode.CS);
+
+        AllocationResult result = strategy.allocateForIncomingS(
+                List.of(matchingMode, differentMode),
+                List.of(),
+                incomingS,
+                "ts");
+
+        assertThat(result.updatedIncomingS().q_a()).isEqualTo(10L);
+        assertThat(result.updatedT())
+                .extracting(T::id, T::q_a_total)
+                .containsExactly(
+                        tuple("t-match", 10L),
+                        tuple("t-mismatch", 0L)
+                );
+    }
+
     private static T t(String id, TT tt, long q, long qATotal, long qF, AStatus status, TCycle tCycle, Long ledgerTime) {
+        return t(id, tt, q, qATotal, qF, status, tCycle, ledgerTime, null);
+    }
+
+    private static T t(String id, TT tt, long q, long qATotal, long qF, AStatus status, TCycle tCycle, Long ledgerTime, SMode sMode) {
         long normalizedQ = (tt == TT.S || tt == TT.SS) ? -Math.abs(q) : Math.abs(q);
         long normalizedQATotal = qATotal == 0L ? 0L : Long.signum(normalizedQ) * Math.abs(qATotal);
-        return new T(id, "PID", "REF-" + id, null, tt, null, null, tCycle, null, status, false, normalizedQ, normalizedQATotal, 0L, qF, ledgerTime);
+        return new T(id, "PID", "REF-" + id, null, tt, null, null, tCycle, sMode, status, false, normalizedQ, normalizedQATotal, 0L, qF, ledgerTime);
     }
 }
