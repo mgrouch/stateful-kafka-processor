@@ -2,6 +2,7 @@ package com.example.stateful.processor.topology;
 
 import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.MessageEnvelope;
+import com.example.stateful.domain.ReconReport;
 import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.StateStores;
@@ -27,6 +28,7 @@ public final class TopologyFactory {
     public static final String DB_SYNC_SINK = "db-sync-events-sink";
     public static final String FAILED_T_SINK = "failed-t-events-sink";
     public static final String S_WITH_Q_CARRY_SINK = "s-with-q-carry-events-sink";
+    public static final String RECON_REPORT_SINK = "recon-report-events-sink";
 
     private TopologyFactory() {
     }
@@ -41,6 +43,7 @@ public final class TopologyFactory {
         Serde<String> stringSerde = serdeFactory.stringSerde();
         Serde<MessageEnvelope> envelopeSerde = serdeFactory.envelopeSerde();
         Serde<DbSyncEnvelope> dbSyncSerde = serdeFactory.dbSyncEnvelopeSerde();
+        Serde<ReconReport> reconReportSerde = serdeFactory.reconReportSerde();
 
         topology.addSource(
                 SOURCE,
@@ -99,6 +102,14 @@ public final class TopologyFactory {
                 settings.sWithQCarryTopic(),
                 stringSerde.serializer(),
                 envelopeSerde.serializer(),
+                PROCESSOR
+        );
+
+        topology.addSink(
+                RECON_REPORT_SINK,
+                settings.reconReportTopic(),
+                stringSerde.serializer(),
+                reconReportSerde.serializer(),
                 PROCESSOR
         );
 

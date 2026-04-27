@@ -1,6 +1,7 @@
 package com.example.stateful.processor.serde;
 
 import com.example.stateful.messaging.DbSyncEnvelope;
+import com.example.stateful.domain.ReconReport;
 import com.example.stateful.messaging.MessageEnvelope;
 import com.example.stateful.messaging.MessageEnvelopeAvroCodec;
 import com.example.stateful.processor.state.SBucket;
@@ -40,4 +41,9 @@ public final class SerdeFactory {
         return new JsonSerde<>(objectMapper, SBucket.class);
     }
 
+    public Serde<ReconReport> reconReportSerde() {
+        return new JsonSerde<>(objectMapper, ReconReport.class);
+    }
+
 }
+

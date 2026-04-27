@@ -8,6 +8,9 @@ import com.example.stateful.domain.S;
 import com.example.stateful.domain.SCycle;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
+import com.example.stateful.domain.ReconReport;
+import com.example.stateful.domain.SMode;
+import com.example.stateful.domain.TCycle;
 import com.example.stateful.domain.TT;
 import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.DbSyncMutationType;
@@ -86,7 +89,8 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 40L, 0L)), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
+            T csModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(csModeTrade), t0.plusMillis(1).toEpochMilli());
 
             MessageEnvelope ts = output.readValue();
             assertThat(ts.ts().q_a_delta()).isEqualTo(40L);
@@ -110,7 +114,8 @@ class TopologyFactoryTest {
 
             S flaggedSupply = new S("s-o", "AAA", null, 40L, 0L, 0L, 0L, 0L, false, true, Dir.R, null);
             input.pipeInput("AAA", MessageEnvelope.forS(flaggedSupply), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
+            T csModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(csModeTrade), t0.plusMillis(1).toEpochMilli());
 
             MessageEnvelope ts = output.readValue();
             assertThat(ts.ts().o()).isTrue();
@@ -127,7 +132,8 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 120L, 0L)), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(new T("t-1", "AAA", "R-1", false, 100L, 0L)), t0.plusMillis(1).toEpochMilli());
+            T csModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(csModeTrade), t0.plusMillis(1).toEpochMilli());
 
             assertThat(output.readValue().ts().q_a_total_after()).isEqualTo(100L);
             assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
@@ -489,6 +495,33 @@ class TopologyFactoryTest {
         }
     }
 
+
+    @Test
+    void rolloverSGeneratesReconReportForCnModeBeforeTs() throws Exception {
+        TestHarness harness = new TestHarness();
+        Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
+
+        try (TopologyTestDriver driver = harness.driver(t0)) {
+            TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
+            TestOutputTopic<String, ReconReport> reconOutput = harness.reconReportOutput(driver);
+
+            T cnTrade = new T("t-cn", "AAA", null, null, "R-CN", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 20L, 0L, 7L, null);
+            T csTrade = new T("t-cs", "AAA", null, null, "R-CS", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 90L, 50L, 0L, 99L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(cnTrade), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(csTrade), t0.plusMillis(1).toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forS(new S("s-roll", "AAA", 60L, 0L, true)), t0.plusMillis(2).toEpochMilli());
+
+            ReconReport report = reconOutput.readValue();
+            assertThat(report.pid()).isEqualTo("AAA");
+            assertThat(report.sid()).isEqualTo("s-roll");
+            assertThat(report.q_tot()).isEqualTo(100L);
+            assertThat(report.q_a_tot()).isEqualTo(20L);
+            assertThat(report.q_f_tot()).isEqualTo(7L);
+            assertThat(report.q_s_tot()).isEqualTo(60L);
+            assertThat(report.q_s_carry()).isEqualTo(20L);
+        }
+    }
+
     @Test
     void topologyContainsOnlyExpectedStateStores() throws Exception {
         TestHarness harness = new TestHarness();
@@ -634,6 +667,7 @@ class TopologyFactoryTest {
                     "db-sync-events",
                     "failed-t-events",
                     "s-with-q-carry-events",
+                    "recon-report-events",
                     Files.createTempDirectory("streams-test-state"),
                     100,
                     1,
@@ -695,6 +729,16 @@ class TopologyFactoryTest {
                     serdeFactory.envelopeSerde().deserializer()
             );
         }
+
+
+        private TestOutputTopic<String, ReconReport> reconReportOutput(TopologyTestDriver driver) {
+            return driver.createOutputTopic(
+                    settings.reconReportTopic(),
+                    Serdes.String().deserializer(),
+                    serdeFactory.reconReportSerde().deserializer()
+            );
+        }
+
     }
 
     private static List<String> emittedTidForSeed(long seed, Instant start) throws Exception {

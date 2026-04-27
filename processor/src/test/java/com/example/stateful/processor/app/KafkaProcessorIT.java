@@ -53,9 +53,10 @@ class KafkaProcessorIT {
         String dbSyncTopic = "db-sync-events-" + suffix;
         String failedTTopic = "failed-t-events-" + suffix;
         String sWithQCarryTopic = "s-with-q-carry-events-" + suffix;
+        String reconReportTopic = "recon-report-events-" + suffix;
         String applicationId = "stateful-it-" + suffix;
 
-        createTopics(inputTopic, outputTopic, dbSyncTopic, failedTTopic, sWithQCarryTopic);
+        createTopics(inputTopic, outputTopic, dbSyncTopic, failedTTopic, sWithQCarryTopic, reconReportTopic);
 
         try (ConfigurableApplicationContext context = ProcessorApplication.createApplication().run(
                 "--spring.kafka.bootstrap-servers=" + BOOTSTRAP,
@@ -71,6 +72,7 @@ class KafkaProcessorIT {
                 "--app.db-sync-topic=" + dbSyncTopic,
                 "--app.failed-t-topic=" + failedTTopic,
                 "--app.s-with-q-carry-topic=" + sWithQCarryTopic,
+                "--app.recon-report-topic=" + reconReportTopic,
                 "--app.state-dir=" + Files.createTempDirectory("stateful-it-state"),
                 "--app.commit-interval-ms=100",
                 "--app.streams.replication-factor=1"
@@ -114,7 +116,7 @@ class KafkaProcessorIT {
         }
     }
 
-    private static void createTopics(String inputTopic, String outputTopic, String dbSyncTopic, String failedTTopic, String sWithQCarryTopic) throws Exception {
+    private static void createTopics(String inputTopic, String outputTopic, String dbSyncTopic, String failedTTopic, String sWithQCarryTopic, String reconReportTopic) throws Exception {
         Properties properties = new Properties();
         properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
         putSecurityConfig(properties);
@@ -125,7 +127,8 @@ class KafkaProcessorIT {
                     new NewTopic(outputTopic, 3, (short) 1),
                     new NewTopic(dbSyncTopic, 3, (short) 1),
                     new NewTopic(failedTTopic, 3, (short) 1),
-                    new NewTopic(sWithQCarryTopic, 3, (short) 1)
+                    new NewTopic(sWithQCarryTopic, 3, (short) 1),
+                    new NewTopic(reconReportTopic, 3, (short) 1)
             )).all().get();
         } catch (ExecutionException executionException) {
             if (!(executionException.getCause() instanceof TopicExistsException)) {

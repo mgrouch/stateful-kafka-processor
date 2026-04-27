@@ -25,6 +25,7 @@ public record ProcessorSettings(
         String dbSyncTopic,
         String failedTTopic,
         String sWithQCarryTopic,
+        String reconReportTopic,
         Path stateDir,
         long commitIntervalMs,
         int replicationFactor,
@@ -46,6 +47,7 @@ public record ProcessorSettings(
         requireText(dbSyncTopic, "dbSyncTopic");
         requireText(failedTTopic, "failedTTopic");
         requireText(sWithQCarryTopic, "sWithQCarryTopic");
+        requireText(reconReportTopic, "reconReportTopic");
         Objects.requireNonNull(stateDir, "stateDir must not be null");
         if (commitIntervalMs <= 0) {
             throw new IllegalArgumentException("commitIntervalMs must be > 0");
@@ -73,6 +75,7 @@ public record ProcessorSettings(
                 environment.getRequiredProperty("app.db-sync-topic"),
                 environment.getRequiredProperty("app.failed-t-topic"),
                 environment.getRequiredProperty("app.s-with-q-carry-topic"),
+                environment.getRequiredProperty("app.recon-report-topic"),
                 Path.of(environment.getRequiredProperty("app.state-dir")),
                 Long.parseLong(environment.getRequiredProperty("app.commit-interval-ms")),
                 Integer.parseInt(environment.getProperty(REPLICATION_FACTOR_PROPERTY, String.valueOf(DEFAULT_REPLICATION_FACTOR))),

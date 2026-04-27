@@ -1,6 +1,8 @@
 package com.example.stateful.processor.processor;
 
 import com.example.stateful.domain.S;
+import com.example.stateful.domain.ReconReport;
+import com.example.stateful.domain.SMode;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
 import com.example.stateful.domain.TT;
@@ -301,6 +303,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         if (incomingS.q_carry() != 0L) {
             emitSWithQCarry(pid, incomingS, record.timestamp());
         }
+        maybeEmitReconReport(record, pid, incomingS);
 
         List<T> candidates = loadT(pid);
         AllocationResult allocation = transitionsLogic.allocateForIncomingS(candidates, incomingS, buildTsIdPrefix(record, "s", incomingS.id()));
@@ -322,6 +325,37 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         }
 
         log.info("Processed S id={} pid={} q={} q_a={}", allocation.updatedIncomingS().id(), pid, allocation.updatedIncomingS().q(), allocation.updatedIncomingS().q_a());
+    }
+
+
+    private void maybeEmitReconReport(Record<String, MessageEnvelope> record, String pid, S incomingS) {
+        if (!incomingS.rollover()) {
+            return;
+        }
+
+        List<T> cnOpenT = loadT(pid).stream()
+                .filter(t -> t.sMode() == SMode.CN)
+                .toList();
+
+        long qTot = cnOpenT.stream().mapToLong(T::q).sum();
+        long qATot = cnOpenT.stream().mapToLong(T::q_a_total).sum();
+        long qFTot = cnOpenT.stream().mapToLong(T::q_f).sum();
+        long totalOpenT = cnOpenT.stream().mapToLong(TransitionsModel::remainingT).sum();
+
+        long qSTot = loadS(pid).stream().mapToLong(TransitionsModel::remainingS).sum() + TransitionsModel.remainingS(incomingS);
+        long qSCarry = totalOpenT - qSTot;
+
+        ReconReport report = new ReconReport(
+                buildTsIdPrefix(record, "recon", incomingS.id()),
+                pid,
+                incomingS.id(),
+                qTot,
+                qATot,
+                qFTot,
+                qSTot,
+                qSCarry
+        );
+        context().forward(new Record<>(pid, report, record.timestamp()), TopologyFactory.RECON_REPORT_SINK);
     }
 
     private void handleTs(Record<String, MessageEnvelope> record, String pid, int ordinalStart) {
