@@ -1,14 +1,10 @@
 package com.example.stateful.messaging;
 
-import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.ActType;
 import com.example.stateful.domain.Dir;
 import com.example.stateful.domain.MStatus;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.SCycle;
-import com.example.stateful.domain.SMode;
-import com.example.stateful.domain.T;
-import com.example.stateful.domain.TCycle;
 import com.example.stateful.domain.TS;
 import com.example.stateful.domain.TT;
 import org.apache.avro.io.BinaryDecoder;
@@ -51,7 +47,6 @@ public final class MessageEnvelopeAvroCodec {
     private static com.example.stateful.messaging.avro.MessageEnvelope toAvro(MessageEnvelope envelope) {
         return com.example.stateful.messaging.avro.MessageEnvelope.newBuilder()
                 .setKind(com.example.stateful.messaging.avro.MessageKind.valueOf(envelope.kind().name()))
-                .setT(envelope.t() == null ? null : toAvro(envelope.t()))
                 .setS(envelope.s() == null ? null : toAvro(envelope.s()))
                 .setTs(envelope.ts() == null ? null : toAvro(envelope.ts()))
                 .build();
@@ -60,32 +55,9 @@ public final class MessageEnvelopeAvroCodec {
     private static MessageEnvelope fromAvro(com.example.stateful.messaging.avro.MessageEnvelope avro) {
         return new MessageEnvelope(
                 MessageKind.valueOf(avro.getKind().name()),
-                avro.getT() == null ? null : fromAvro(avro.getT()),
                 avro.getS() == null ? null : fromAvro(avro.getS()),
                 avro.getTs() == null ? null : fromAvro(avro.getTs())
         );
-    }
-
-    private static com.example.stateful.messaging.avro.T toAvro(T t) {
-        return com.example.stateful.messaging.avro.T.newBuilder()
-                .setId(t.id()).setPid(t.pid()).setPidAlt1(t.pidAlt1()).setPidAlt2(t.pidAlt2()).setRef(t.ref())
-                .setAccId(t.accId()).setSorId(t.sorId()).setOarId(t.oarId())
-                .setTt(com.example.stateful.messaging.avro.TT.valueOf(t.tt().name()))
-                .setTDate(t.tDate()).setSDate(t.sDate())
-                .setTCycle(com.example.stateful.messaging.avro.TCycle.valueOf(t.tCycle().name()))
-                .setSMode(com.example.stateful.messaging.avro.SMode.valueOf(t.sMode().name()))
-                .setAStatus(com.example.stateful.messaging.avro.AStatus.valueOf(t.a_status().name()))
-                .setActivity(com.example.stateful.messaging.avro.ActType.valueOf(t.activity().name()))
-                .setMStatus(com.example.stateful.messaging.avro.MStatus.valueOf(t.mStatus().name()))
-                .setCancel(t.cancel()).setQ(t.q()).setQATotal(t.q_a_total()).setQADeltaLast(t.q_a_delta_last()).setQF(t.q_f())
-                .setLedgerTime(t.ledgerTime())
-                .build();
-    }
-
-    private static T fromAvro(com.example.stateful.messaging.avro.T t) {
-        return new T(t.getId(), t.getPid(), nullable(t.getPidAlt1()), nullable(t.getPidAlt2()), t.getRef(), nullable(t.getAccId()), nullable(t.getSorId()), nullable(t.getOarId()),
-                TT.valueOf(t.getTt().name()), t.getTDate(), t.getSDate(), TCycle.valueOf(t.getTCycle().name()), SMode.valueOf(t.getSMode().name()),
-                AStatus.valueOf(t.getAStatus().name()), ActType.valueOf(t.getActivity().name()), MStatus.valueOf(t.getMStatus().name()), t.getCancel(), t.getQ(), t.getQATotal(), t.getQADeltaLast(), t.getQF(), t.getLedgerTime());
     }
 
     private static com.example.stateful.messaging.avro.S toAvro(S s) {

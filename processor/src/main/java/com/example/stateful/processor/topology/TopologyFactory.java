@@ -56,13 +56,13 @@ public final class TopologyFactory {
                 () -> new StatefulEnvelopeProcessor(allocationStrategy);
         topology.addProcessor(PROCESSOR, supplier, SOURCE);
 
-        KeyValueBytesStoreSupplier tStoreSupplier = Stores.persistentKeyValueStore(StateStores.UNPROCESSED_T_STORE);
+        KeyValueBytesStoreSupplier tsStoreSupplier = Stores.persistentKeyValueStore(StateStores.UNPROCESSED_TS_STORE);
         KeyValueBytesStoreSupplier sStoreSupplier = Stores.persistentKeyValueStore(StateStores.UNPROCESSED_S_STORE);
         KeyValueBytesStoreSupplier dedupeStoreSupplier = Stores.persistentKeyValueStore(StateStores.T_DEDUPE_STORE);
 
         // Keep changelog topics enabled for all state stores to preserve state recovery guarantees.
         topology.addStateStore(
-                loggedStore(Stores.keyValueStoreBuilder(tStoreSupplier, stringSerde, serdeFactory.tBucketSerde())),
+                loggedStore(Stores.keyValueStoreBuilder(tsStoreSupplier, stringSerde, serdeFactory.tsBucketSerde())),
                 PROCESSOR
         );
         topology.addStateStore(
