@@ -135,6 +135,29 @@ class AutoAllocOppositeStrategyTest {
     }
 
     @Test
+    void allocateForIncomingSOnlyAutoAllocatesOppositeForCnMode() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        S incomingS = new S("s-1", "PID", null, 10L, 0L, 0L, 0L, 0L, false, false, Dir.R, 100L);
+
+        T cnModeOpposite = t("t-opposite-cn", TT.S, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 99L, SMode.CN);
+        T csModeOpposite = t("t-opposite-cs", TT.S, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 99L, SMode.CS);
+
+        AllocationResult result = strategy.allocateForIncomingS(
+                List.of(cnModeOpposite, csModeOpposite),
+                List.of(),
+                incomingS,
+                "ts");
+
+        assertThat(result.updatedIncomingS().q_a_opposite_delta()).isEqualTo(-10L);
+        assertThat(result.updatedT())
+                .extracting(T::id, T::q_a_total)
+                .containsExactly(
+                        tuple("t-opposite-cs", 0L),
+                        tuple("t-opposite-cn", -10L)
+                );
+    }
+
+    @Test
     void allocateForIncomingSIgnoresCandidatesWithDifferentSMode() {
         AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
         S incomingS = new S("s-1", "PID", null, 10L, 0L, 0L, 0L, 0L, false, false, Dir.R, 100L);
