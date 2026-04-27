@@ -148,7 +148,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     }
 
     private void handleTs(Record<String, MessageEnvelope> record, String pid, int ordinalStart) {
-        TS incomingTs = record.value().ts();
+        TS incomingTs = maybeForceFullAllocationForSingleExtraS(record.value().ts(), pid);
         long timestamp = eventTimestamp(record);
         String dedupeKey = buildTsDedupeKey(incomingTs);
         Long seenAt = tDedupeStore.get(dedupeKey);
@@ -158,7 +158,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         }
         tDedupeStore.put(dedupeKey, timestamp);
         log.info("Forwarding TS id={} pid={}", incomingTs.id(), pid);
-        emitProcessed(pid, record.value(), record.timestamp());
+        emitProcessed(pid, MessageEnvelope.forTS(incomingTs), record.timestamp());
         emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, incomingTs, record, ordinalStart);
 
         if (isOpen(incomingTs)) {
@@ -168,6 +168,56 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             removeTs(pid, incomingTs.tid());
             emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, toTProjection(incomingTs), null, null, record, ordinalStart + 1);
         }
+    }
+
+    private TS maybeForceFullAllocationForSingleExtraS(TS incomingTs, String pid) {
+        if (incomingTs.extraS() == null || incomingTs.extraS().size() != 1) {
+            return incomingTs;
+        }
+
+        S primaryS = loadS(pid).stream()
+                .filter(candidate -> candidate.id().equals(incomingTs.sid()))
+                .findFirst()
+                .orElse(null);
+        if (primaryS == null) {
+            log.warn("TS id={} pid={} includes one extraS but primary S id={} is not present in unprocessed store", incomingTs.id(), pid, incomingTs.sid());
+            return incomingTs;
+        }
+
+        S extraS = incomingTs.extraS().get(0);
+        if (Long.signum(primaryS.q()) == Long.signum(extraS.q())) {
+            throw new IllegalArgumentException("TS id=" + incomingTs.id() + " requires primary S.q and extraS.q to be opposite sign");
+        }
+
+        if (!primaryS.o() && !extraS.o() && incomingTs.q_a_total_after() != incomingTs.q()) {
+            long deltaToFull = incomingTs.q() - incomingTs.q_a_total_after();
+            log.info("Forcing full allocation for TS id={} pid={} based on CN primary+extra supply pair", incomingTs.id(), pid);
+            return new TS(
+                    incomingTs.id(),
+                    incomingTs.pid(),
+                    incomingTs.pidAlt1(),
+                    incomingTs.pidAlt2(),
+                    incomingTs.tid(),
+                    incomingTs.sid(),
+                    incomingTs.accId(),
+                    incomingTs.sorId(),
+                    incomingTs.oarId(),
+                    incomingTs.tDate(),
+                    incomingTs.sDate(),
+                    incomingTs.q(),
+                    deltaToFull,
+                    incomingTs.q(),
+                    incomingTs.tt(),
+                    incomingTs.activity(),
+                    incomingTs.mStatus(),
+                    incomingTs.o(),
+                    incomingTs.cancel(),
+                    incomingTs.extraS(),
+                    incomingTs.refTS()
+            );
+        }
+
+        return incomingTs;
     }
 
     private void persistUpdatedS(String pid, List<S> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
