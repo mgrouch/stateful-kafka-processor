@@ -4,7 +4,7 @@ import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
-import com.example.stateful.processor.state.TBucket;
+import com.example.stateful.processor.state.TSBucket;
 import com.example.stateful.processor.logic.AllocationStrategy;
 import com.example.stateful.processor.topology.TopologyFactory;
 import org.apache.kafka.streams.KafkaStreams;
@@ -101,9 +101,10 @@ public final class KafkaStreamsManager implements SmartLifecycle {
         return false;
     }
 
-    public Optional<TBucket> readUnprocessedT(String pid) {
-        return Optional.ofNullable(queryStore(StateStores.UNPROCESSED_T_STORE, pid));
+    public Optional<TSBucket> readUnprocessedTs(String pid) {
+        return Optional.ofNullable(queryStore(StateStores.UNPROCESSED_TS_STORE, pid));
     }
+
 
     public Optional<SBucket> readUnprocessedS(String pid) {
         return Optional.ofNullable(queryStore(StateStores.UNPROCESSED_S_STORE, pid));
