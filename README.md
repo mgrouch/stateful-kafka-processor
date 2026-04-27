@@ -42,7 +42,7 @@ Validation and defaults:
 ```text
 S(
   id, pid, bDate,
-  q, q_carry, q_a,
+  q, q_carry, q_a, q_unalloc, q_unkn,
   q_a_opposite_delta, q_a_opposite_total,
   rollover, o,
   dir, sCycle,
