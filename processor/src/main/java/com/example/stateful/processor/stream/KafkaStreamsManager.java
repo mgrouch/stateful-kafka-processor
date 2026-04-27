@@ -1,12 +1,9 @@
 package com.example.stateful.processor.stream;
 
-import com.example.stateful.domain.AStatus;
-import com.example.stateful.domain.T;
 import com.example.stateful.processor.config.ProcessorSettings;
 import com.example.stateful.processor.serde.SerdeFactory;
 import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
-import com.example.stateful.processor.state.TBucket;
 import com.example.stateful.processor.state.TSBucket;
 import com.example.stateful.processor.logic.AllocationStrategy;
 import com.example.stateful.processor.topology.TopologyFactory;
@@ -108,13 +105,6 @@ public final class KafkaStreamsManager implements SmartLifecycle {
         return Optional.ofNullable(queryStore(StateStores.UNPROCESSED_TS_STORE, pid));
     }
 
-
-    public Optional<TBucket> readUnprocessedT(String pid) {
-        return readUnprocessedTs(pid).map(bucket -> new TBucket(bucket.items().stream()
-                .map(ts -> new T(ts.tid(), ts.pid(), ts.pidAlt1(), ts.pidAlt2(), ts.refTS(), ts.accId(), ts.sorId(), ts.oarId(),
-                        ts.tt(), ts.tDate(), ts.sDate(), AStatus.NORM, ts.cancel(), ts.q(), ts.q_a_total_after(), ts.q_a_delta(), 0L, null))
-                .toList()));
-    }
 
     public Optional<SBucket> readUnprocessedS(String pid) {
         return Optional.ofNullable(queryStore(StateStores.UNPROCESSED_S_STORE, pid));

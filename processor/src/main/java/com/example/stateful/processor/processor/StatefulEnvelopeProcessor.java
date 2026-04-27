@@ -73,33 +73,11 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
         int ordinal = 0;
         switch (record.value().kind()) {
-            case T -> handleT(record, pid, ordinal);
+            case T -> log.warn("Ignoring legacy T message id={} pid={}. Processor now expects TS inputs.", record.value().t().id(), pid);
             case S -> handleS(record, pid, ordinal);
             case TS -> handleTs(record, pid, ordinal);
             default -> throw new IllegalStateException("Unsupported kind " + record.value().kind());
         }
-    }
-
-    private void handleT(Record<String, MessageEnvelope> record, String pid, int ordinalStart) {
-        T incomingT = record.value().t();
-        long timestamp = eventTimestamp(record);
-        String dedupeKey = buildTDedupeKey(incomingT);
-        Long seenAt = tDedupeStore.get(dedupeKey);
-
-        if (seenAt != null && timestamp - seenAt <= DEDUPE_WINDOW_MILLIS) {
-            log.info("Skipping duplicate T id={} pid={} dedupeKey={} seenAt={} currentTs={}", incomingT.id(), pid, dedupeKey, seenAt, timestamp);
-            return;
-        }
-
-        tDedupeStore.put(dedupeKey, timestamp);
-        emitDbSync(pid, DbSyncMutationType.ACCEPTED_T, incomingT, null, null, record, ordinalStart);
-        if (incomingT.a_status() == AStatus.FAIL) {
-            emitFailedT(pid, incomingT, record.timestamp());
-        }
-
-        TS asTs = toReceivedTs(record, incomingT);
-        Record<String, MessageEnvelope> tsRecord = new Record<>(record.key(), MessageEnvelope.forTS(asTs), record.timestamp(), record.headers());
-        handleTs(tsRecord, pid, ordinalStart + 1);
     }
 
     private void handleS(Record<String, MessageEnvelope> record, String pid, int ordinal) {
@@ -304,10 +282,6 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         context().forward(new Record<>(pid, value, timestamp), TopologyFactory.PROCESSED_SINK);
     }
 
-    private void emitFailedT(String pid, T value, long timestamp) {
-        context().forward(new Record<>(pid, MessageEnvelope.forT(value), timestamp), TopologyFactory.FAILED_T_SINK);
-    }
-
     private void emitSWithQCarry(String pid, S value, long timestamp) {
         context().forward(new Record<>(pid, MessageEnvelope.forS(value), timestamp), TopologyFactory.S_WITH_Q_CARRY_SINK);
     }
@@ -353,10 +327,6 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         return record.timestamp() >= 0 ? record.timestamp() : context().currentSystemTimeMs();
     }
 
-    private static String buildTDedupeKey(T t) {
-        return "T|" + t.pid() + "|" + t.ref() + "|" + t.cancel();
-    }
-
     private static String buildSDedupeKey(S s) {
         return "S|" + s.pid() + "|" + s.refS() + "|false";
     }
@@ -389,32 +359,6 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
     private boolean isOpen(TS ts) {
         return TransitionsModel.signedRemaining(ts.q(), ts.q_a_total_after()) != 0L;
-    }
-
-    private TS toReceivedTs(Record<String, MessageEnvelope> record, T t) {
-        return new TS(
-                buildTsIdPrefix(record, "received", t.id()),
-                t.pid(),
-                t.pidAlt1(),
-                t.pidAlt2(),
-                t.id(),
-                "received-" + t.id(),
-                t.accId(),
-                t.sorId(),
-                t.oarId(),
-                t.tDate(),
-                t.sDate(),
-                t.q(),
-                t.q() - t.q_a_total(),
-                t.q_a_total(),
-                t.tt(),
-                t.activity(),
-                t.mStatus(),
-                false,
-                t.cancel(),
-                null,
-                t.ref()
-        );
     }
 
     private TS toTsProjection(Record<String, MessageEnvelope> record, T t) {
