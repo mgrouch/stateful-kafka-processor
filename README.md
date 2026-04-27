@@ -87,6 +87,7 @@ Validation and defaults:
 - DB sync output topic: `db-sync-events`
 - Failed `T` output topic: `failed-t-events`
 - `S` with `q_carry` output topic: `s-with-q-carry-events`
+- Recon report output topic: `recon-report-events`
 - Kafka key remains `pid` for all sinks (input key mismatch only logs a warning).
 
 Kafka Streams state stores:
@@ -164,7 +165,7 @@ Special `sDate` rule for `T`: same as incoming `T` flow.
 ## Topology and processor notes
 
 - Topology has one source (`input-events-source`) and one processor (`stateful-envelope-processor`).
-- Four sinks are wired from the processor: processed, db-sync, failed-T, and S-with-carry.
+- Five sinks are wired from the processor: processed, db-sync, failed-T, S-with-carry, and recon-report.
 - All three state stores are persistent key-value stores with changelog logging enabled.
 - DB-sync metadata (`sourceTopic`, `sourcePartition`, `sourceOffset`) is required from Kafka record metadata.
 - `eventId` is deterministic: `topic-partition-offset-ordinal-mutationType`.
@@ -219,5 +220,5 @@ mvn clean verify
 
 ```bash
 docker compose up -d kafka
-mvn -pl processor spring-boot:run -Dspring-boot.run.arguments="--spring.kafka.bootstrap-servers=localhost:9093 --app.kafka.security-protocol=SSL --app.kafka.ssl.truststore-location=/path/to/client.truststore.jks --app.kafka.ssl.truststore-password=changeit --app.application-id=stateful-data-processor --app.input-topic=input-events --app.output-topic=processed-events --app.db-sync-topic=db-sync-events --app.failed-t-topic=failed-t-events --app.s-with-q-carry-topic=s-with-q-carry-events"
+mvn -pl processor spring-boot:run -Dspring-boot.run.arguments="--spring.kafka.bootstrap-servers=localhost:9093 --app.kafka.security-protocol=SSL --app.kafka.ssl.truststore-location=/path/to/client.truststore.jks --app.kafka.ssl.truststore-password=changeit --app.application-id=stateful-data-processor --app.input-topic=input-events --app.output-topic=processed-events --app.db-sync-topic=db-sync-events --app.failed-t-topic=failed-t-events --app.s-with-q-carry-topic=s-with-q-carry-events --app.recon-report-topic=recon-report-events"
 ```

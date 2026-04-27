@@ -48,6 +48,7 @@ class ProcessorSettingsTest {
                 .withProperty("app.db-sync-topic", "db-sync-topic")
                 .withProperty("app.failed-t-topic", "failed-t-topic")
                 .withProperty("app.s-with-q-carry-topic", "s-with-q-carry-topic")
+                .withProperty("app.recon-report-topic", "recon-report-topic")
                 .withProperty("app.state-dir", "build/tmp/kafka-state")
                 .withProperty("app.commit-interval-ms", "100");
     }

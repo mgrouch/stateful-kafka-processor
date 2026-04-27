@@ -35,6 +35,7 @@ app:
   db-sync-topic: db-sync-events
   failed-t-topic: failed-t-events
   s-with-q-carry-topic: s-with-q-carry-events
+  recon-report-topic: recon-report-events
   state-dir: processor/kafka-streams-state
   commit-interval-ms: 100
   streams:
