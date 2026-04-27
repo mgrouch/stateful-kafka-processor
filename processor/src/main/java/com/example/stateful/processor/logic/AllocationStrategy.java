@@ -27,6 +27,11 @@ public interface AllocationStrategy {
         int tsIndex = 0;
 
         for (S candidate : orderedCandidates) {
+            if (!isAllocationEligible(candidate)) {
+                updatedS.add(candidate);
+                continue;
+            }
+
             long tRemaining = remainingT(updatedT);
             long sRemaining = remainingS(candidate);
             long allocated = allocate(tRemaining, sRemaining);
@@ -48,6 +53,11 @@ public interface AllocationStrategy {
 
     default AllocationResult allocateForIncomingS(List<T> orderedCandidates, List<T> untouchedCandidates, S incomingS, String idPrefix) {
         List<T> updatedT = new ArrayList<>();
+        if (!isAllocationEligible(incomingS)) {
+            updatedT.addAll(orderedCandidates);
+            updatedT.addAll(untouchedCandidates);
+            return new AllocationResult(null, List.of(), incomingS, updatedT, List.of());
+        }
         List<TS> emitted = new ArrayList<>();
         S updatedS = incomingS;
         int tsIndex = 0;
@@ -70,6 +80,10 @@ public interface AllocationStrategy {
         }
         updatedT.addAll(untouchedCandidates);
         return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
+    }
+
+    private static boolean isAllocationEligible(S s) {
+        return !s.o();
     }
 
     private static long remainingT(T t) {

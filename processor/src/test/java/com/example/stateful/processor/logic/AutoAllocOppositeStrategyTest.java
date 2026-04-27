@@ -249,6 +249,47 @@ class AutoAllocOppositeStrategyTest {
                 .containsExactly(tuple("s-opposite", 0L));
     }
 
+
+    @Test
+    void allocateForIncomingSIgnoresIncomingSWithOTrue() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        S incomingS = new S("s-incoming", "PID", null, 10L, 0L, 0L, 0L, 0L, false, true, Dir.R, 100L);
+        T candidate = t("t-match", TT.B, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 100L, SMode.CN);
+
+        AllocationResult result = strategy.allocateForIncomingS(
+                List.of(candidate),
+                List.of(),
+                incomingS,
+                "ts");
+
+        assertThat(result.updatedIncomingS().q_a()).isEqualTo(0L);
+        assertThat(result.updatedT()).extracting(T::id, T::q_a_total).containsExactly(tuple("t-match", 0L));
+        assertThat(result.emittedTs()).isEmpty();
+    }
+
+    @Test
+    void allocateForIncomingTIgnoresCandidatesWithOTrue() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        T incomingT = t("t-incoming", TT.B, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 100L, SMode.CN);
+        S ineligible = new S("s-o-true", "PID", null, 10L, 0L, 0L, 0L, 0L, false, true, Dir.R, 100L);
+        S eligible = new S("s-o-false", "PID", null, 10L, 0L, 0L, 0L, 0L, false, false, Dir.R, 100L);
+
+        AllocationResult result = strategy.allocateForIncomingT(
+                incomingT,
+                List.of(ineligible, eligible),
+                List.of(),
+                "ts");
+
+        assertThat(result.updatedIncomingT().q_a_total()).isEqualTo(10L);
+        assertThat(result.updatedS())
+                .extracting(S::id, S::q_a)
+                .containsExactly(
+                        tuple("s-o-false", 10L),
+                        tuple("s-o-true", 0L)
+                );
+        assertThat(result.emittedTs()).extracting(TS::sid).containsExactly("s-o-false");
+    }
+
     private static T t(String id, TT tt, long q, long qATotal, long qF, AStatus status, TCycle tCycle, Long ledgerTime) {
         return t(id, tt, q, qATotal, qF, status, tCycle, ledgerTime, null);
     }

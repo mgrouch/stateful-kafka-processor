@@ -102,7 +102,9 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         int tsIndex = 0;
 
         for (S candidate : orderedCandidates) {
-            if (isOppositeAutoAllocationEligible(candidate, incomingT)) {
+            if (!isAllocationEligible(candidate)) {
+                regularUntouched.add(candidate);
+            } else if (isOppositeAutoAllocationEligible(candidate, incomingT)) {
                 long tRemaining = TransitionsModel.remainingT(updatedT);
                 long sRemaining = TransitionsModel.remainingS(candidate);
                 long oppositeAllocated = allocateOpposite(tRemaining, sRemaining);
@@ -132,7 +134,9 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         }
 
         for (S candidate : untouchedCandidates) {
-            if (isOppositeAutoAllocationEligible(candidate, incomingT)) {
+            if (!isAllocationEligible(candidate)) {
+                regularUntouched.add(candidate);
+            } else if (isOppositeAutoAllocationEligible(candidate, incomingT)) {
                 long tRemaining = TransitionsModel.remainingT(updatedT);
                 long sRemaining = TransitionsModel.remainingS(candidate);
                 long oppositeAllocated = allocateOpposite(tRemaining, sRemaining);
@@ -188,6 +192,13 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
 
     @Override
     public AllocationResult allocateForIncomingS(List<T> orderedCandidates, List<T> untouchedCandidates, S incomingS, String idPrefix) {
+        if (!isAllocationEligible(incomingS)) {
+            List<T> updatedT = new ArrayList<>(orderedCandidates.size() + untouchedCandidates.size());
+            updatedT.addAll(orderedCandidates);
+            updatedT.addAll(untouchedCandidates);
+            return new AllocationResult(null, List.of(), incomingS, updatedT, List.of());
+        }
+
         List<T> regularOrdered = new ArrayList<>();
         List<T> regularUntouched = new ArrayList<>();
         List<T> updatedOpposite = new ArrayList<>();
@@ -279,6 +290,11 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         updatedT.addAll(combinedUntouched);
         updatedT.addAll(updatedOpposite);
         return new AllocationResult(null, List.of(), updatedS, updatedT, emitted);
+    }
+
+
+    private static boolean isAllocationEligible(S s) {
+        return !s.o();
     }
 
     private static boolean areSignCompatible(long lhs, long rhs) {
