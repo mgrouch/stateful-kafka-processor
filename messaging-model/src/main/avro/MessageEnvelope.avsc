@@ -3,7 +3,7 @@
   "name": "MessageEnvelope",
   "namespace": "com.example.stateful.messaging.avro",
   "fields": [
-    {"name": "kind", "type": {"type": "enum", "name": "MessageKind", "symbols": ["S", "TS"]}},
+    {"name": "kind", "type": {"type": "enum", "name": "MessageKind", "symbols": ["S", "TS", "ROLLOVER"]}},
     {"name": "s", "type": ["null", {
       "type": "record",
       "name": "S",
