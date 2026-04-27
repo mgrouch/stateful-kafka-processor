@@ -15,6 +15,8 @@
         {"name": "q", "type": "long"},
         {"name": "q_carry", "type": "long"},
         {"name": "q_a", "type": "long"},
+        {"name": "q_unalloc", "type": "long", "default": 0},
+        {"name": "q_unkn", "type": "long", "default": 0},
         {"name": "q_a_opposite_delta", "type": "long"},
         {"name": "q_a_opposite_total", "type": "long"},
         {"name": "rollover", "type": "boolean"},

@@ -63,6 +63,7 @@ public final class MessageEnvelopeAvroCodec {
     private static com.example.stateful.messaging.avro.S toAvro(S s) {
         return com.example.stateful.messaging.avro.S.newBuilder()
                 .setId(s.id()).setPid(s.pid()).setRefS(s.refS()).setBDate(s.bDate()).setQ(s.q()).setQCarry(s.q_carry()).setQA(s.q_a())
+                .setQUnalloc(s.q_unalloc()).setQUnkn(s.q_unkn())
                 .setQAOppositeDelta(s.q_a_opposite_delta()).setQAOppositeTotal(s.q_a_opposite_total())
                 .setRollover(s.rollover()).setO(s.o())
                 .setDir(com.example.stateful.messaging.avro.Dir.valueOf(s.dir().name()))
@@ -72,7 +73,7 @@ public final class MessageEnvelopeAvroCodec {
     }
 
     private static S fromAvro(com.example.stateful.messaging.avro.S s) {
-        return new S(s.getId(), s.getPid(), s.getBDate(), s.getQ(), s.getQCarry(), s.getQA(), s.getQAOppositeDelta(), s.getQAOppositeTotal(), s.getRollover(), s.getO(), Dir.valueOf(s.getDir().name()), SCycle.valueOf(s.getSCycle().name()), s.getLedgerTime(), nullable(s.getRefS()));
+        return new S(s.getId(), s.getPid(), s.getBDate(), s.getQ(), s.getQCarry(), s.getQA(), s.getQUnalloc(), s.getQUnkn(), s.getQAOppositeDelta(), s.getQAOppositeTotal(), s.getRollover(), s.getO(), Dir.valueOf(s.getDir().name()), SCycle.valueOf(s.getSCycle().name()), s.getLedgerTime(), nullable(s.getRefS()));
     }
 
     private static com.example.stateful.messaging.avro.TS toAvro(TS ts) {

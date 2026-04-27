@@ -9,6 +9,8 @@ public record S(String id,
                 long q,
                 long q_carry,
                 long q_a,
+                long q_unalloc,
+                long q_unkn,
                 long q_a_opposite_delta,
                 long q_a_opposite_total,
                 boolean rollover,
@@ -18,43 +20,55 @@ public record S(String id,
                 Long ledgerTime,
                 String refS) {
     public S(String id, String pid, long q, long q_a) {
-        this(id, pid, null, q, 0L, q_a, 0L, 0L, false, false, inferDir(q), SCycle.SD, null, null);
+        this(id, pid, null, q, 0L, q_a, 0L, 0L, 0L, 0L, false, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, long q, long q_a, boolean rollover) {
-        this(id, pid, null, q, 0L, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
+        this(id, pid, null, q, 0L, q_a, 0L, 0L, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, long q, long q_carry, long q_a, boolean rollover) {
-        this(id, pid, null, q, q_carry, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
+        this(id, pid, null, q, q_carry, q_a, 0L, 0L, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate, long q, long q_a) {
-        this(id, pid, bDate, q, 0L, q_a, 0L, 0L, false, false, inferDir(q), SCycle.SD, null, null);
+        this(id, pid, bDate, q, 0L, q_a, 0L, 0L, 0L, 0L, false, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate, long q, long q_a, boolean rollover) {
-        this(id, pid, bDate, q, 0L, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
+        this(id, pid, bDate, q, 0L, q_a, 0L, 0L, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate, long q, long q_carry, long q_a, boolean rollover) {
-        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
+        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, 0L, 0L, rollover, false, inferDir(q), SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate, long q, long q_carry, long q_a, boolean rollover, Dir dir) {
-        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, rollover, false, dir, SCycle.SD, null, null);
+        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, 0L, 0L, rollover, false, dir, SCycle.SD, null, null);
     }
 
     public S(String id, String pid, LocalDate bDate,
              long q, long q_carry, long q_a, long q_a_opposite_delta, long q_a_opposite_total,
              boolean rollover, Dir dir, Long ledgerTime) {
-        this(id, pid, bDate, q, q_carry, q_a, q_a_opposite_delta, q_a_opposite_total, rollover, false, dir, SCycle.SD, ledgerTime, null);
+        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, q_a_opposite_delta, q_a_opposite_total, rollover, false, dir, SCycle.SD, ledgerTime, null);
     }
 
     public S(String id, String pid, LocalDate bDate,
              long q, long q_carry, long q_a, long q_a_opposite_delta, long q_a_opposite_total,
              boolean rollover, boolean o, Dir dir, Long ledgerTime) {
-        this(id, pid, bDate, q, q_carry, q_a, q_a_opposite_delta, q_a_opposite_total, rollover, o, dir, SCycle.SD, ledgerTime, null);
+        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, q_a_opposite_delta, q_a_opposite_total, rollover, o, dir, SCycle.SD, ledgerTime, null);
+    }
+
+    public S(String id, String pid, LocalDate bDate,
+             long q, long q_carry, long q_a, long q_unalloc, long q_unkn, long q_a_opposite_delta, long q_a_opposite_total,
+             boolean rollover, boolean o, Dir dir, Long ledgerTime) {
+        this(id, pid, bDate, q, q_carry, q_a, q_unalloc, q_unkn, q_a_opposite_delta, q_a_opposite_total, rollover, o, dir, SCycle.SD, ledgerTime, null);
+    }
+
+    public S(String id, String pid, LocalDate bDate,
+             long q, long q_carry, long q_a, long q_a_opposite_delta, long q_a_opposite_total,
+             boolean rollover, boolean o, Dir dir, SCycle sCycle, Long ledgerTime, String refS) {
+        this(id, pid, bDate, q, q_carry, q_a, 0L, 0L, q_a_opposite_delta, q_a_opposite_total, rollover, o, dir, sCycle, ledgerTime, refS);
     }
 
     public S {
