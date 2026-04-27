@@ -127,6 +127,7 @@ class AutoAllocOppositeStrategyTest {
                 "ts");
 
         assertThat(result.updatedIncomingS().q_a_opposite_delta()).isEqualTo(-10L);
+        assertThat(result.updatedIncomingS().q_unalloc()).isEqualTo(20L);
         assertThat(result.updatedT())
                 .extracting(T::id, T::q_a_total)
                 .containsExactly(
@@ -173,6 +174,7 @@ class AutoAllocOppositeStrategyTest {
                 "ts");
 
         assertThat(result.updatedIncomingS().q_a()).isEqualTo(10L);
+        assertThat(result.updatedIncomingS().q_unalloc()).isZero();
         assertThat(result.updatedT())
                 .extracting(T::id, T::q_a_total)
                 .containsExactly(
