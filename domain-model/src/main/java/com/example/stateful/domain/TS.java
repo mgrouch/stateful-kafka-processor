@@ -24,7 +24,36 @@ public record TS(String id,
                  boolean o,
                  boolean cancel,
                  List<S> extraS,
-                 String refTS) {
+                 String refTS,
+                 TCycle tCycle,
+                 SMode sMode,
+                 AStatus a_status,
+                 long q_f,
+                 Long ledgerTime) {
+    public TS(String id,
+              String pid,
+              String pidAlt1,
+              String pidAlt2,
+              String tid,
+              String sid,
+              String accId,
+              String sorId,
+              String oarId,
+              LocalDate tDate,
+              LocalDate sDate,
+              long q,
+              long q_a_delta,
+              long q_a_total_after,
+              TT tt,
+              ActType activity,
+              MStatus mStatus,
+              boolean o,
+              boolean cancel,
+              List<S> extraS,
+              String refTS) {
+        this(id, pid, pidAlt1, pidAlt2, tid, sid, accId, sorId, oarId, tDate, sDate, q, q_a_delta, q_a_total_after, tt, activity, mStatus, o, cancel, extraS, refTS, TCycle.SD, SMode.CN, AStatus.NORM, 0L, null);
+    }
+
     public TS(String id, String pid, String tid, String sid, long q, long q_a_delta) {
         this(id, pid, null, null, tid, sid, null, null, null, null, null, q, q_a_delta, q_a_delta, TT.B, ActType.A01, MStatus.U, false, false, null, null);
     }
@@ -157,6 +186,9 @@ public record TS(String id,
         tt = tt == null ? TT.B : tt;
         activity = activity == null ? ActType.A01 : activity;
         mStatus = mStatus == null ? MStatus.U : mStatus;
+        tCycle = tCycle == null ? TCycle.SD : tCycle;
+        sMode = sMode == null ? SMode.CN : sMode;
+        a_status = a_status == null ? AStatus.NORM : a_status;
         if (extraS != null) {
             if (extraS.size() > 3) {
                 throw new IllegalArgumentException("extraS must contain at most 3 items");
@@ -180,6 +212,9 @@ public record TS(String id,
         }
         if (Math.abs(q_a_total_after) > Math.abs(q)) {
             throw new IllegalArgumentException("q_a_total_after must satisfy abs(q_a_total_after) <= abs(q)");
+        }
+        if (a_status == AStatus.FAIL && q_f == 0L) {
+            throw new IllegalArgumentException("q_f must not be 0 when a_status is FAIL");
         }
     }
 

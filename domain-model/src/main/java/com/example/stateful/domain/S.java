@@ -16,7 +16,26 @@ public record S(String id,
                 Dir dir,
                 SCycle sCycle,
                 Long ledgerTime,
-                String refS) {
+                String refS,
+                long q_unalloc,
+                long q_unkn) {
+    public S(String id,
+             String pid,
+             LocalDate bDate,
+             long q,
+             long q_carry,
+             long q_a,
+             long q_a_opposite_delta,
+             long q_a_opposite_total,
+             boolean rollover,
+             boolean o,
+             Dir dir,
+             SCycle sCycle,
+             Long ledgerTime,
+             String refS) {
+        this(id, pid, bDate, q, q_carry, q_a, q_a_opposite_delta, q_a_opposite_total, rollover, o, dir, sCycle, ledgerTime, refS, 0L, 0L);
+    }
+
     public S(String id, String pid, long q, long q_a) {
         this(id, pid, null, q, 0L, q_a, 0L, 0L, false, false, inferDir(q), SCycle.SD, null, null);
     }
