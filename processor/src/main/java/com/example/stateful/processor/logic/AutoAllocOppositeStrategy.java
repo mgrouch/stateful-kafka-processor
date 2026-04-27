@@ -122,9 +122,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         int tsIndex = 0;
 
         for (T candidate : orderedCandidates) {
-            if (hasOppositeSign(candidate.q(), incomingS.q())
-                    && isLedgerTimeCompatible(candidate, incomingS)
-                    && isSModeCompatible(incomingS, candidate)) {
+            if (isOppositeAutoAllocationEligible(candidate, incomingS)) {
                 long delta = candidate.q() - candidate.q_a_total();
                 T nextT = copyWithAllocation(candidate, candidate.q(), delta, candidate.sDate());
                 updatedOpposite.add(nextT);
@@ -138,9 +136,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         }
 
         for (T candidate : untouchedCandidates) {
-            if (hasOppositeSign(candidate.q(), incomingS.q())
-                    && isLedgerTimeCompatible(candidate, incomingS)
-                    && isSModeCompatible(incomingS, candidate)) {
+            if (isOppositeAutoAllocationEligible(candidate, incomingS)) {
                 long delta = candidate.q() - candidate.q_a_total();
                 T nextT = copyWithAllocation(candidate, candidate.q(), delta, candidate.sDate());
                 updatedOpposite.add(nextT);
@@ -216,6 +212,13 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
 
     private static boolean hasOppositeSign(long lhs, long rhs) {
         return lhs != 0L && rhs != 0L && Long.signum(lhs) != Long.signum(rhs);
+    }
+
+    private static boolean isOppositeAutoAllocationEligible(T t, S s) {
+        return t.sMode() == SMode.CN
+                && hasOppositeSign(t.q(), s.q())
+                && isLedgerTimeCompatible(t, s)
+                && isSModeCompatible(s, t);
     }
 
     private static boolean isLedgerTimeCompatible(T t, S s) {
