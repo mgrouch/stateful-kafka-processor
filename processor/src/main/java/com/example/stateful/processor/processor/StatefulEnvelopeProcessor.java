@@ -73,7 +73,6 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
 
         int ordinal = 0;
         switch (record.value().kind()) {
-            case T -> log.warn("Ignoring legacy T message id={} pid={}. Processor now expects TS inputs.", record.value().t().id(), pid);
             case S -> handleS(record, pid, ordinal);
             case TS -> handleTs(record, pid, ordinal);
             default -> throw new IllegalStateException("Unsupported kind " + record.value().kind());
