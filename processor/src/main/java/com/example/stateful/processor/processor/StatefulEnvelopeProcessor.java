@@ -126,15 +126,15 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     }
 
     private void tryProcessCancellation(Record<String, MessageEnvelope> record, String pid, T incomingT, OrdinalRef ordinal) {
-        T openTrade = loadT(pid).stream()
+        T openT = loadT(pid).stream()
                 .filter(t -> t.id().equals(incomingT.id()))
                 .findFirst()
                 .orElse(null);
-        T knownTrade = openTrade;
-        if (knownTrade == null) {
+        T knownT = openT;
+        if (knownT == null) {
             Long priorSeen = tDedupeStore.get(buildProcessedDedupeKey(pid, incomingT.id()));
             if (priorSeen != null) {
-                knownTrade = new T(
+                knownT = new T(
                         incomingT.id(),
                         pid,
                         incomingT.pidAlt1(),
@@ -156,115 +156,115 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
                 );
             }
         }
-        if (knownTrade == null) {
+        if (knownT == null) {
             log.warn("Ignoring cancellation for T id={} pid={} because no matching open T or prior non-cancel dedupe marker exists", incomingT.id(), pid);
             return;
         }
 
-        if (knownTrade.q_a_total() != 0L) {
-            compensateWithPseudoOppositeT(record, pid, incomingT, knownTrade, openTrade, ordinal);
+        if (knownT.q_a_total() != 0L) {
+            compensateWithPseudoOppositeT(record, pid, incomingT, knownT, openT, ordinal);
             return;
         }
 
-        long cancelDelta = knownTrade.q() - knownTrade.q_a_total();
-        T processedTrade = new T(
-                knownTrade.id(),
-                knownTrade.pid(),
-                knownTrade.pidAlt1(),
-                knownTrade.pidAlt2(),
-                knownTrade.ref(),
-                knownTrade.accId(),
-                knownTrade.tt(),
-                knownTrade.tDate(),
-                knownTrade.sDate(),
-                knownTrade.a_status(),
+        long cancelDelta = knownT.q() - knownT.q_a_total();
+        T processedT = new T(
+                knownT.id(),
+                knownT.pid(),
+                knownT.pidAlt1(),
+                knownT.pidAlt2(),
+                knownT.ref(),
+                knownT.accId(),
+                knownT.tt(),
+                knownT.tDate(),
+                knownT.sDate(),
+                knownT.a_status(),
                 true,
-                knownTrade.q(),
-                knownTrade.q(),
+                knownT.q(),
+                knownT.q(),
                 cancelDelta,
-                knownTrade.q_f(),
-                knownTrade.ledgerTime()
+                knownT.q_f(),
+                knownT.ledgerTime()
         );
         TS cancelTs = new TS(
                 buildTsIdPrefix(record, "cancel", incomingT.id()) + "-1",
                 pid,
-                processedTrade.pidAlt1(),
-                processedTrade.pidAlt2(),
-                processedTrade.id(),
-                "cancel-" + processedTrade.id(),
-                processedTrade.accId(),
-                processedTrade.tDate(),
-                processedTrade.sDate(),
-                processedTrade.q(),
+                processedT.pidAlt1(),
+                processedT.pidAlt2(),
+                processedT.id(),
+                "cancel-" + processedT.id(),
+                processedT.accId(),
+                processedT.tDate(),
+                processedT.sDate(),
+                processedT.q(),
                 cancelDelta,
-                processedTrade.q_a_total(),
-                processedTrade.tt(),
+                processedT.q_a_total(),
+                processedT.tt(),
                 false,
                 true
         );
 
         emitProcessed(pid, MessageEnvelope.forTS(cancelTs), record.timestamp());
         emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, cancelTs, record, ordinal.next());
-        if (openTrade != null) {
-            removeT(pid, processedTrade.id());
-            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, processedTrade, null, null, record, ordinal.next());
+        if (openT != null) {
+            removeT(pid, processedT.id());
+            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, processedT, null, null, record, ordinal.next());
         }
-        log.info("Processed cancellation for T id={} pid={} q={}", processedTrade.id(), pid, processedTrade.q());
+        log.info("Processed cancellation for T id={} pid={} q={}", processedT.id(), pid, processedT.q());
         return;
     }
 
-    private void compensateWithPseudoOppositeT(Record<String, MessageEnvelope> record, String pid, T incomingCancel, T knownTrade, T openTrade, OrdinalRef ordinal) {
-        long compensatedQty = -knownTrade.q_a_total();
-        TT compensatedTt = oppositeTt(knownTrade.tt());
+    private void compensateWithPseudoOppositeT(Record<String, MessageEnvelope> record, String pid, T incomingCancel, T knownT, T openT, OrdinalRef ordinal) {
+        long compensatedQty = -knownT.q_a_total();
+        TT compensatedTt = oppositeTt(knownT.tt());
         T pseudoOpposite = new T(
-                "cancel-comp-" + knownTrade.id() + "-" + eventTimestamp(record),
+                "cancel-comp-" + knownT.id() + "-" + eventTimestamp(record),
                 pid,
-                knownTrade.pidAlt1(),
-                knownTrade.pidAlt2(),
+                knownT.pidAlt1(),
+                knownT.pidAlt2(),
                 incomingCancel.ref(),
-                knownTrade.accId(),
-                knownTrade.sorId(),
-                knownTrade.oarId(),
+                knownT.accId(),
+                knownT.sorId(),
+                knownT.oarId(),
                 compensatedTt,
-                knownTrade.tDate(),
-                knownTrade.sDate(),
-                knownTrade.a_status(),
+                knownT.tDate(),
+                knownT.sDate(),
+                knownT.a_status(),
                 false,
                 compensatedQty,
                 0L,
                 0L,
-                knownTrade.q_f(),
+                knownT.q_f(),
                 eventTimestamp(record)
         );
 
-        if (openTrade != null) {
-            T canceledOpenTrade = new T(
-                    openTrade.id(),
-                    openTrade.pid(),
-                    openTrade.pidAlt1(),
-                    openTrade.pidAlt2(),
-                    openTrade.ref(),
-                    openTrade.accId(),
-                    openTrade.tt(),
-                    openTrade.tDate(),
-                    openTrade.sDate(),
-                    openTrade.a_status(),
+        if (openT != null) {
+            T canceledOpenT = new T(
+                    openT.id(),
+                    openT.pid(),
+                    openT.pidAlt1(),
+                    openT.pidAlt2(),
+                    openT.ref(),
+                    openT.accId(),
+                    openT.tt(),
+                    openT.tDate(),
+                    openT.sDate(),
+                    openT.a_status(),
                     true,
-                    openTrade.q(),
-                    openTrade.q_a_total(),
-                    openTrade.q_a_delta_last(),
-                    openTrade.q_f(),
-                    openTrade.ledgerTime()
+                    openT.q(),
+                    openT.q_a_total(),
+                    openT.q_a_delta_last(),
+                    openT.q_f(),
+                    openT.ledgerTime()
             );
-            removeT(pid, openTrade.id());
-            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, canceledOpenTrade, null, null, record, ordinal.next());
+            removeT(pid, openT.id());
+            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, canceledOpenT, null, null, record, ordinal.next());
         }
 
         List<S> candidates = loadS(pid);
         AllocationResult compensation = transitionsLogic.allocateForIncomingT(
                 pseudoOpposite,
                 candidates,
-                buildTsIdPrefix(record, "cancel-comp", knownTrade.id())
+                buildTsIdPrefix(record, "cancel-comp", knownT.id())
         );
 
         for (TS ts : compensation.emittedTs()) {
@@ -282,7 +282,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         }
         log.info(
                 "Processed cancellation compensation for T id={} pid={} using pseudo opposite T id={} q={}",
-                knownTrade.id(),
+                knownT.id(),
                 pid,
                 compensation.updatedIncomingT().id(),
                 compensation.updatedIncomingT().q()

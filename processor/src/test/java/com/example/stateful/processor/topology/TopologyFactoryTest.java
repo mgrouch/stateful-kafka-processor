@@ -89,8 +89,8 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 40L, 0L)), t0.toEpochMilli());
-            T cnModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
-            input.pipeInput("AAA", MessageEnvelope.forT(cnModeTrade), t0.plusMillis(1).toEpochMilli());
+            T cnModeT = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(cnModeT), t0.plusMillis(1).toEpochMilli());
 
             MessageEnvelope ts = output.readValue();
             assertThat(ts.ts().q_a_delta()).isEqualTo(40L);
@@ -114,8 +114,8 @@ class TopologyFactoryTest {
 
             S supply = new S("s-1", "AAA", 40L, 0L);
             input.pipeInput("AAA", MessageEnvelope.forS(supply), t0.toEpochMilli());
-            T cnModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
-            input.pipeInput("AAA", MessageEnvelope.forT(cnModeTrade), t0.plusMillis(1).toEpochMilli());
+            T cnModeT = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(cnModeT), t0.plusMillis(1).toEpochMilli());
 
             MessageEnvelope ts = output.readValue();
             assertThat(ts.ts().o()).isFalse();
@@ -132,8 +132,8 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 120L, 0L)), t0.toEpochMilli());
-            T cnModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
-            input.pipeInput("AAA", MessageEnvelope.forT(cnModeTrade), t0.plusMillis(1).toEpochMilli());
+            T cnModeT = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(cnModeT), t0.plusMillis(1).toEpochMilli());
 
             assertThat(output.readValue().ts().q_a_total_after()).isEqualTo(100L);
             assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
@@ -505,10 +505,10 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, ReconReport> reconOutput = harness.reconReportOutput(driver);
 
-            T cnTrade = new T("t-cn", "AAA", null, null, "R-CN", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 20L, 0L, 7L, null);
-            T csTrade = new T("t-cs", "AAA", null, null, "R-CS", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 90L, 50L, 0L, 99L, null);
-            input.pipeInput("AAA", MessageEnvelope.forT(cnTrade), t0.toEpochMilli());
-            input.pipeInput("AAA", MessageEnvelope.forT(csTrade), t0.plusMillis(1).toEpochMilli());
+            T cnT = new T("t-cn", "AAA", null, null, "R-CN", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 20L, 0L, 7L, null);
+            T csT = new T("t-cs", "AAA", null, null, "R-CS", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 90L, 50L, 0L, 99L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(cnT), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forT(csT), t0.plusMillis(1).toEpochMilli());
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-roll", "AAA", 60L, 0L, true)), t0.plusMillis(2).toEpochMilli());
 
             ReconReport report = reconOutput.readValue();

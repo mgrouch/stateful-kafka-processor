@@ -85,7 +85,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                         .toList(),
                 incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_OPEN_S_BUCKET));
         ordered.addAll(shuffleDeterministically(canonical.stream()
-                        .filter(this::isOtherOpenTrade)
+                        .filter(this::isOtherOpenT)
                         .toList(),
                 incomingS.pid(), incomingS.id(), LOTTERY_INCOMING_S, LOTTERY_OPEN_OTHER_BUCKET));
         return ordered;
@@ -378,7 +378,7 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
         return candidate.q_a_total() == 0L && candidate.q_f() == 0L && candidate.tt() == TT.S;
     }
 
-    private boolean isOtherOpenTrade(T candidate) {
+    private boolean isOtherOpenT(T candidate) {
         return !isPartiallyFailedS(candidate)
                 && !isPartiallyFailedNonS(candidate)
                 && !isFullyFailedS(candidate)
