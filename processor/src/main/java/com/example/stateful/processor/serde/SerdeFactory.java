@@ -5,7 +5,7 @@ import com.example.stateful.domain.ReconReport;
 import com.example.stateful.messaging.MessageEnvelope;
 import com.example.stateful.messaging.MessageEnvelopeAvroCodec;
 import com.example.stateful.processor.state.SBucket;
-import com.example.stateful.processor.state.TBucket;
+import com.example.stateful.processor.state.TSBucket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
@@ -33,8 +33,8 @@ public final class SerdeFactory {
         return new JsonSerde<>(objectMapper, DbSyncEnvelope.class);
     }
 
-    public Serde<TBucket> tBucketSerde() {
-        return new JsonSerde<>(objectMapper, TBucket.class);
+    public Serde<TSBucket> tsBucketSerde() {
+        return new JsonSerde<>(objectMapper, TSBucket.class);
     }
 
     public Serde<SBucket> sBucketSerde() {

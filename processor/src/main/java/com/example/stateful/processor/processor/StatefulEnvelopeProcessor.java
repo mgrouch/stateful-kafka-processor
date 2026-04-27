@@ -1,12 +1,11 @@
 package com.example.stateful.processor.processor;
 
-import com.example.stateful.domain.S;
+import com.example.stateful.domain.AStatus;
 import com.example.stateful.domain.ReconReport;
+import com.example.stateful.domain.S;
 import com.example.stateful.domain.SMode;
 import com.example.stateful.domain.T;
 import com.example.stateful.domain.TS;
-import com.example.stateful.domain.TT;
-import com.example.stateful.domain.AStatus;
 import com.example.stateful.messaging.DbSyncEnvelope;
 import com.example.stateful.messaging.DbSyncMutationType;
 import com.example.stateful.messaging.MessageEnvelope;
@@ -15,7 +14,7 @@ import com.example.stateful.processor.logic.AllocationStrategy;
 import com.example.stateful.processor.logic.TransitionsModel;
 import com.example.stateful.processor.state.SBucket;
 import com.example.stateful.processor.state.StateStores;
-import com.example.stateful.processor.state.TBucket;
+import com.example.stateful.processor.state.TSBucket;
 import com.example.stateful.processor.topology.TopologyFactory;
 import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.api.ContextualProcessor;
@@ -43,7 +42,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     private static final Duration DEDUPE_CLEANUP_INTERVAL = Duration.ofHours(1);
     private final TransitionsModel transitionsLogic;
 
-    private KeyValueStore<String, TBucket> tStore;
+    private KeyValueStore<String, TSBucket> tsStore;
     private KeyValueStore<String, SBucket> sStore;
     private KeyValueStore<String, Long> tDedupeStore;
 
@@ -54,7 +53,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
     @Override
     public void init(ProcessorContext<String, Object> context) {
         super.init(context);
-        this.tStore = context.getStateStore(StateStores.UNPROCESSED_T_STORE);
+        this.tsStore = context.getStateStore(StateStores.UNPROCESSED_TS_STORE);
         this.sStore = context.getStateStore(StateStores.UNPROCESSED_S_STORE);
         this.tDedupeStore = context.getStateStore(StateStores.T_DEDUPE_STORE);
 
@@ -81,7 +80,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         }
     }
 
-    private void handleT(Record<String, MessageEnvelope> record, String pid, int ordinal) {
+    private void handleT(Record<String, MessageEnvelope> record, String pid, int ordinalStart) {
         T incomingT = record.value().t();
         long timestamp = eventTimestamp(record);
         String dedupeKey = buildTDedupeKey(incomingT);
@@ -93,200 +92,14 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         }
 
         tDedupeStore.put(dedupeKey, timestamp);
-        emitDbSync(pid, DbSyncMutationType.ACCEPTED_T, incomingT, null, null, record, ordinal++);
+        emitDbSync(pid, DbSyncMutationType.ACCEPTED_T, incomingT, null, null, record, ordinalStart);
         if (incomingT.a_status() == AStatus.FAIL) {
             emitFailedT(pid, incomingT, record.timestamp());
         }
 
-        if (incomingT.cancel()) {
-            tryProcessCancellation(record, pid, incomingT, new OrdinalRef(ordinal));
-            return;
-        }
-        tDedupeStore.put(buildProcessedDedupeKey(pid, incomingT.id()), timestamp);
-
-        List<S> candidates = loadS(pid);
-        AllocationResult allocation = transitionsLogic.allocateForIncomingT(incomingT, candidates, buildTsIdPrefix(record, "t", incomingT.id()));
-
-        for (TS ts : allocation.emittedTs()) {
-            emitProcessed(pid, MessageEnvelope.forTS(ts), record.timestamp());
-            emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, ts, record, ordinal++);
-        }
-
-        persistUpdatedS(pid, allocation.updatedS(), record, new OrdinalRef(ordinal));
-        ordinal = ordinal + allocation.updatedS().size();
-
-        if (transitionsLogic.isOpen(allocation.updatedIncomingT())) {
-            upsertT(pid, allocation.updatedIncomingT());
-            emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, allocation.updatedIncomingT(), null, null, record, ordinal);
-        } else {
-            removeT(pid, allocation.updatedIncomingT().id());
-            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, allocation.updatedIncomingT(), null, null, record, ordinal);
-        }
-        log.info("Processed T id={} pid={} q={} q_a_total={}", allocation.updatedIncomingT().id(), pid, allocation.updatedIncomingT().q(), allocation.updatedIncomingT().q_a_total());
-    }
-
-    private void tryProcessCancellation(Record<String, MessageEnvelope> record, String pid, T incomingT, OrdinalRef ordinal) {
-        T openT = loadT(pid).stream()
-                .filter(t -> t.id().equals(incomingT.id()))
-                .findFirst()
-                .orElse(null);
-        T knownT = openT;
-        if (knownT == null) {
-            Long priorSeen = tDedupeStore.get(buildProcessedDedupeKey(pid, incomingT.id()));
-            if (priorSeen != null) {
-                knownT = new T(
-                        incomingT.id(),
-                        pid,
-                        incomingT.pidAlt1(),
-                        incomingT.pidAlt2(),
-                        incomingT.ref(),
-                        incomingT.accId(),
-                        incomingT.sorId(),
-                        incomingT.oarId(),
-                        incomingT.tt(),
-                        incomingT.tDate(),
-                        incomingT.sDate(),
-                        incomingT.a_status(),
-                        false,
-                        incomingT.q(),
-                        incomingT.q(),
-                        incomingT.q(),
-                        incomingT.q_f(),
-                        priorSeen
-                );
-            }
-        }
-        if (knownT == null) {
-            log.warn("Ignoring cancellation for T id={} pid={} because no matching open T or prior non-cancel dedupe marker exists", incomingT.id(), pid);
-            return;
-        }
-
-        if (knownT.q_a_total() != 0L) {
-            compensateWithPseudoOppositeT(record, pid, incomingT, knownT, openT, ordinal);
-            return;
-        }
-
-        long cancelDelta = knownT.q() - knownT.q_a_total();
-        T processedT = new T(
-                knownT.id(),
-                knownT.pid(),
-                knownT.pidAlt1(),
-                knownT.pidAlt2(),
-                knownT.ref(),
-                knownT.accId(),
-                knownT.tt(),
-                knownT.tDate(),
-                knownT.sDate(),
-                knownT.a_status(),
-                true,
-                knownT.q(),
-                knownT.q(),
-                cancelDelta,
-                knownT.q_f(),
-                knownT.ledgerTime()
-        );
-        TS cancelTs = new TS(
-                buildTsIdPrefix(record, "cancel", incomingT.id()) + "-1",
-                pid,
-                processedT.pidAlt1(),
-                processedT.pidAlt2(),
-                processedT.id(),
-                "cancel-" + processedT.id(),
-                processedT.accId(),
-                processedT.tDate(),
-                processedT.sDate(),
-                processedT.q(),
-                cancelDelta,
-                processedT.q_a_total(),
-                processedT.tt(),
-                false,
-                true
-        );
-
-        emitProcessed(pid, MessageEnvelope.forTS(cancelTs), record.timestamp());
-        emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, cancelTs, record, ordinal.next());
-        if (openT != null) {
-            removeT(pid, processedT.id());
-            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, processedT, null, null, record, ordinal.next());
-        }
-        log.info("Processed cancellation for T id={} pid={} q={}", processedT.id(), pid, processedT.q());
-        return;
-    }
-
-    private void compensateWithPseudoOppositeT(Record<String, MessageEnvelope> record, String pid, T incomingCancel, T knownT, T openT, OrdinalRef ordinal) {
-        long compensatedQty = -knownT.q_a_total();
-        TT compensatedTt = oppositeTt(knownT.tt());
-        T pseudoOpposite = new T(
-                "cancel-comp-" + knownT.id() + "-" + eventTimestamp(record),
-                pid,
-                knownT.pidAlt1(),
-                knownT.pidAlt2(),
-                incomingCancel.ref(),
-                knownT.accId(),
-                knownT.sorId(),
-                knownT.oarId(),
-                compensatedTt,
-                knownT.tDate(),
-                knownT.sDate(),
-                knownT.a_status(),
-                false,
-                compensatedQty,
-                0L,
-                0L,
-                knownT.q_f(),
-                eventTimestamp(record)
-        );
-
-        if (openT != null) {
-            T canceledOpenT = new T(
-                    openT.id(),
-                    openT.pid(),
-                    openT.pidAlt1(),
-                    openT.pidAlt2(),
-                    openT.ref(),
-                    openT.accId(),
-                    openT.tt(),
-                    openT.tDate(),
-                    openT.sDate(),
-                    openT.a_status(),
-                    true,
-                    openT.q(),
-                    openT.q_a_total(),
-                    openT.q_a_delta_last(),
-                    openT.q_f(),
-                    openT.ledgerTime()
-            );
-            removeT(pid, openT.id());
-            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, canceledOpenT, null, null, record, ordinal.next());
-        }
-
-        List<S> candidates = loadS(pid);
-        AllocationResult compensation = transitionsLogic.allocateForIncomingT(
-                pseudoOpposite,
-                candidates,
-                buildTsIdPrefix(record, "cancel-comp", knownT.id())
-        );
-
-        for (TS ts : compensation.emittedTs()) {
-            emitProcessed(pid, MessageEnvelope.forTS(ts), record.timestamp());
-            emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, ts, record, ordinal.next());
-        }
-
-        persistUpdatedS(pid, compensation.updatedS(), record, ordinal);
-        if (transitionsLogic.isOpen(compensation.updatedIncomingT())) {
-            upsertT(pid, compensation.updatedIncomingT());
-            emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, compensation.updatedIncomingT(), null, null, record, ordinal.next());
-        } else {
-            removeT(pid, compensation.updatedIncomingT().id());
-            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, compensation.updatedIncomingT(), null, null, record, ordinal.next());
-        }
-        log.info(
-                "Processed cancellation compensation for T id={} pid={} using pseudo opposite T id={} q={}",
-                knownT.id(),
-                pid,
-                compensation.updatedIncomingT().id(),
-                compensation.updatedIncomingT().q()
-        );
+        TS asTs = toReceivedTs(record, incomingT);
+        Record<String, MessageEnvelope> tsRecord = new Record<>(record.key(), MessageEnvelope.forTS(asTs), record.timestamp(), record.headers());
+        handleTs(tsRecord, pid, ordinalStart + 1);
     }
 
     private void handleS(Record<String, MessageEnvelope> record, String pid, int ordinal) {
@@ -305,7 +118,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         }
         maybeEmitReconReport(record, pid, incomingS);
 
-        List<T> candidates = loadT(pid);
+        List<T> candidates = loadTsAsT(pid);
         AllocationResult allocation = transitionsLogic.allocateForIncomingS(candidates, incomingS, buildTsIdPrefix(record, "s", incomingS.id()));
 
         for (TS ts : allocation.emittedTs()) {
@@ -313,7 +126,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, ts, record, ordinal++);
         }
 
-        persistUpdatedT(pid, allocation.updatedT(), record, new OrdinalRef(ordinal));
+        persistUpdatedTAsTs(pid, allocation.updatedT(), record, new OrdinalRef(ordinal));
         ordinal = ordinal + allocation.updatedT().size();
 
         if (transitionsLogic.isOpen(allocation.updatedIncomingS())) {
@@ -327,13 +140,12 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         log.info("Processed S id={} pid={} q={} q_a={}", allocation.updatedIncomingS().id(), pid, allocation.updatedIncomingS().q(), allocation.updatedIncomingS().q_a());
     }
 
-
     private void maybeEmitReconReport(Record<String, MessageEnvelope> record, String pid, S incomingS) {
         if (!incomingS.rollover()) {
             return;
         }
 
-        List<T> cnOpenT = loadT(pid).stream()
+        List<T> cnOpenT = loadTsAsT(pid).stream()
                 .filter(t -> t.sMode() == SMode.CN)
                 .toList();
 
@@ -371,6 +183,14 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         log.info("Forwarding TS id={} pid={}", incomingTs.id(), pid);
         emitProcessed(pid, record.value(), record.timestamp());
         emitDbSync(pid, DbSyncMutationType.GENERATED_TS, null, null, incomingTs, record, ordinalStart);
+
+        if (isOpen(incomingTs)) {
+            upsertTs(pid, incomingTs);
+            emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, toTProjection(incomingTs), null, null, record, ordinalStart + 1);
+        } else {
+            removeTs(pid, incomingTs.tid());
+            emitDbSync(pid, DbSyncMutationType.DELETE_UNPROCESSED_T, toTProjection(incomingTs), null, null, record, ordinalStart + 1);
+        }
     }
 
     private void persistUpdatedS(String pid, List<S> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
@@ -392,15 +212,16 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         sStore.put(pid, new SBucket(new ArrayList<>(openById.values())));
     }
 
-    private void persistUpdatedT(String pid, List<T> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
-        Map<String, T> openById = new LinkedHashMap<>();
+    private void persistUpdatedTAsTs(String pid, List<T> updatedCandidates, Record<String, MessageEnvelope> record, OrdinalRef ordinal) {
+        Map<String, TS> openById = new LinkedHashMap<>();
         Set<String> closedIds = new HashSet<>();
         for (T t : updatedCandidates) {
             if (!pid.equals(t.pid())) {
                 throw new IllegalStateException("Updated T pid mismatch");
             }
             if (transitionsLogic.isOpen(t)) {
-                openById.put(t.id(), t);
+                TS projectedTs = toTsProjection(record, t);
+                openById.put(t.id(), projectedTs);
                 emitDbSync(pid, DbSyncMutationType.UPSERT_UNPROCESSED_T, t, null, null, record, ordinal.next());
             } else {
                 closedIds.add(t.id());
@@ -408,7 +229,7 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
             }
         }
         closedIds.forEach(openById::remove);
-        tStore.put(pid, new TBucket(new ArrayList<>(openById.values())));
+        tsStore.put(pid, new TSBucket(new ArrayList<>(openById.values())));
     }
 
     private List<S> loadS(String pid) {
@@ -416,45 +237,40 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         return bucket == null ? List.of() : bucket.items();
     }
 
-    private List<T> loadT(String pid) {
-        TBucket bucket = tStore.get(pid);
+    private List<TS> loadTs(String pid) {
+        TSBucket bucket = tsStore.get(pid);
         return bucket == null ? List.of() : bucket.items();
     }
 
-    private static TT oppositeTt(TT original) {
-        return switch (original) {
-            case B -> TT.S;
-            case S -> TT.B;
-            case CS -> TT.SS;
-            case SS -> TT.CS;
-        };
+    private List<T> loadTsAsT(String pid) {
+        return loadTs(pid).stream().map(this::toTProjection).toList();
     }
 
-    private void upsertT(String pid, T value) {
-        List<T> next = new ArrayList<>();
+    private void upsertTs(String pid, TS value) {
+        List<TS> next = new ArrayList<>();
         boolean replaced = false;
-        for (T t : loadT(pid)) {
-            if (t.id().equals(value.id())) {
+        for (TS ts : loadTs(pid)) {
+            if (ts.tid().equals(value.tid())) {
                 next.add(value);
                 replaced = true;
             } else {
-                next.add(t);
+                next.add(ts);
             }
         }
         if (!replaced) {
             next.add(value);
         }
-        tStore.put(pid, new TBucket(next));
+        tsStore.put(pid, new TSBucket(next));
     }
 
-    private void removeT(String pid, String id) {
-        List<T> next = new ArrayList<>();
-        for (T t : loadT(pid)) {
-            if (!t.id().equals(id)) {
-                next.add(t);
+    private void removeTs(String pid, String tid) {
+        List<TS> next = new ArrayList<>();
+        for (TS ts : loadTs(pid)) {
+            if (!ts.tid().equals(tid)) {
+                next.add(ts);
             }
         }
-        tStore.put(pid, new TBucket(next));
+        tsStore.put(pid, new TSBucket(next));
     }
 
     private void upsertS(String pid, S value) {
@@ -549,10 +365,6 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         return "TS|" + ts.pid() + "|" + ts.refTS() + "|" + ts.cancel();
     }
 
-    private static String buildProcessedDedupeKey(String pid, String tid) {
-        return pid + "|" + tid + "|false";
-    }
-
     private void evictExpiredDedupeKeys(long streamTime) {
         long cutoff = streamTime - DEDUPE_WINDOW_MILLIS;
         List<String> toDelete = new ArrayList<>();
@@ -573,6 +385,85 @@ public final class StatefulEnvelopeProcessor extends ContextualProcessor<String,
         if (!toDelete.isEmpty()) {
             log.info("Evicted {} expired dedupe keys older than {}", toDelete.size(), cutoff);
         }
+    }
+
+    private boolean isOpen(TS ts) {
+        return TransitionsModel.signedRemaining(ts.q(), ts.q_a_total_after()) != 0L;
+    }
+
+    private TS toReceivedTs(Record<String, MessageEnvelope> record, T t) {
+        return new TS(
+                buildTsIdPrefix(record, "received", t.id()),
+                t.pid(),
+                t.pidAlt1(),
+                t.pidAlt2(),
+                t.id(),
+                "received-" + t.id(),
+                t.accId(),
+                t.sorId(),
+                t.oarId(),
+                t.tDate(),
+                t.sDate(),
+                t.q(),
+                t.q() - t.q_a_total(),
+                t.q_a_total(),
+                t.tt(),
+                t.activity(),
+                t.mStatus(),
+                false,
+                t.cancel(),
+                null,
+                t.ref()
+        );
+    }
+
+    private TS toTsProjection(Record<String, MessageEnvelope> record, T t) {
+        return new TS(
+                buildTsIdPrefix(record, "state", t.id()),
+                t.pid(),
+                t.pidAlt1(),
+                t.pidAlt2(),
+                t.id(),
+                "state-" + t.id(),
+                t.accId(),
+                t.sorId(),
+                t.oarId(),
+                t.tDate(),
+                t.sDate(),
+                t.q(),
+                t.q_a_delta_last() == 0L ? t.q_a_total() : t.q_a_delta_last(),
+                t.q_a_total(),
+                t.tt(),
+                t.activity(),
+                t.mStatus(),
+                false,
+                t.cancel(),
+                null,
+                t.ref()
+        );
+    }
+
+    private T toTProjection(TS ts) {
+        return new T(
+                ts.tid(),
+                ts.pid(),
+                ts.pidAlt1(),
+                ts.pidAlt2(),
+                ts.refTS(),
+                ts.accId(),
+                ts.sorId(),
+                ts.oarId(),
+                ts.tt(),
+                ts.tDate(),
+                ts.sDate(),
+                AStatus.NORM,
+                ts.cancel(),
+                ts.q(),
+                ts.q_a_total_after(),
+                ts.q_a_delta(),
+                0L,
+                null
+        );
     }
 
     private static final class OrdinalRef {
