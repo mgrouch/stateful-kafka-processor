@@ -89,8 +89,8 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 40L, 0L)), t0.toEpochMilli());
-            T csModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
-            input.pipeInput("AAA", MessageEnvelope.forT(csModeTrade), t0.plusMillis(1).toEpochMilli());
+            T cnModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(cnModeTrade), t0.plusMillis(1).toEpochMilli());
 
             MessageEnvelope ts = output.readValue();
             assertThat(ts.ts().q_a_delta()).isEqualTo(40L);
@@ -104,7 +104,7 @@ class TopologyFactoryTest {
     }
 
     @Test
-    void supplyOFlagPropagatesToGeneratedTs() throws Exception {
+    void supplyDefaultOFlagRemainsFalseOnGeneratedTs() throws Exception {
         TestHarness harness = new TestHarness();
         Instant t0 = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -112,13 +112,13 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
-            S flaggedSupply = new S("s-o", "AAA", null, 40L, 0L, 0L, 0L, 0L, false, true, Dir.R, null);
-            input.pipeInput("AAA", MessageEnvelope.forS(flaggedSupply), t0.toEpochMilli());
-            T csModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
-            input.pipeInput("AAA", MessageEnvelope.forT(csModeTrade), t0.plusMillis(1).toEpochMilli());
+            S supply = new S("s-1", "AAA", 40L, 0L);
+            input.pipeInput("AAA", MessageEnvelope.forS(supply), t0.toEpochMilli());
+            T cnModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(cnModeTrade), t0.plusMillis(1).toEpochMilli());
 
             MessageEnvelope ts = output.readValue();
-            assertThat(ts.ts().o()).isTrue();
+            assertThat(ts.ts().o()).isFalse();
         }
     }
 
@@ -132,8 +132,8 @@ class TopologyFactoryTest {
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
             input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 120L, 0L)), t0.toEpochMilli());
-            T csModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
-            input.pipeInput("AAA", MessageEnvelope.forT(csModeTrade), t0.plusMillis(1).toEpochMilli());
+            T cnModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CN, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
+            input.pipeInput("AAA", MessageEnvelope.forT(cnModeTrade), t0.plusMillis(1).toEpochMilli());
 
             assertThat(output.readValue().ts().q_a_total_after()).isEqualTo(100L);
             assertThat(driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items()).isEmpty();
