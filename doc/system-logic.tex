@@ -209,6 +209,11 @@ with
 \]
 $F$ is deterministic for fixed state and source metadata.
 
+\subsection{ReconReport generation}
+\texttt{ReconReport} is generated from the same mutation stream and state transitions defined in this specification.
+In practice, this means the report is a deterministic projection of accepted inputs (\texttt{ACCEPTED\_T}/\texttt{ACCEPTED\_S}), generated links (\texttt{GENERATED\_TS}), and open-state rewrites (UPSERT/DELETE events).
+No extra matching rule is introduced at report time: report rows are derived from already-committed allocation outcomes.
+
 \section{Incoming $T$: Allocation Logic}\label{sec:incoming-t}
 \begin{enumerate}[leftmargin=*]
   \item Build dedupe key $(p,ref,cancel)$.
@@ -219,7 +224,7 @@ $F$ is deterministic for fixed state and source metadata.
   \item If $cancel=false$, store marker $(p,id,\texttt{processed})$ and run normal path:
   \begin{enumerate}[label=\alph*.,leftmargin=*]
     \item load all $S\in\mathcal{S}_p$,
-    \item keep only ledger-compatible and sign-compatible candidates with $R_T(T_{in})$,
+    \item keep only ledger-compatible, sign-compatible, and \emph{sMode-matching} candidates with $R_T(T_{in})$,
     \item order candidates by $(\neg rollover,id)$: rollover first, then ascending $id$,
     \item for each candidate $S_j$, compute $\delta_j=Alloc(R_T(T),R_S(S_j))$,
     \item if $\delta_j\neq 0$, update both sides and emit one $TS$,
@@ -241,7 +246,8 @@ Both use signed compatibility + ledger gating + residual-based updates, yet the 
   \item Else write dedupe timestamp and emit \texttt{ACCEPTED\_S}.
   \item If $q_{carry}\neq 0$, forward to dedicated carry sink.
   \item Load all $T\in\mathcal{T}_p$.
-  \item Run opposite-sign auto-allocation first over eligible pools (ledger-compatible only).
+  \item Run opposite-sign auto-allocation first over eligible pools (ledger-compatible only) only for candidate $T$ records with $T.sMode=CN$.
+  \item For $T.sMode\neq CN$, opposite-sign auto-allocation is not applicable and is skipped.
   \item For each non-zero opposite delta:
   \begin{itemize}[leftmargin=*]
     \item force matched $T$ to fully allocated ($q_{a,total}\gets q$),
@@ -250,6 +256,7 @@ Both use signed compatibility + ledger gating + residual-based updates, yet the 
     \item accumulate into $S_{in}.q_{a,opposite,\Delta}$ and $S_{in}.q_{a,opposite,total}$.
   \end{itemize}
   \item Recompute $R_S(S_{in})$ and classify remaining $T$ by compatibility and state.
+  \item For normal same-sign matching, keep only ledger-compatible, sign-compatible, and \emph{sMode-matching} candidates.
   \item Process compatible candidates by bucket priority (Section~\ref{sec:buckets}).
   \item Emit $TS$ for each non-zero allocation.
   \item Append incompatible untouched $T$, then already opposite-auto-allocated $T$.
