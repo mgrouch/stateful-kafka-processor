@@ -88,14 +88,14 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
-            input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 40L, 0L)), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", null, 40L, 0L, 0L, 0L, 0L, false, true, Dir.R, null)), t0.toEpochMilli());
             T csModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
             input.pipeInput("AAA", MessageEnvelope.forT(csModeTrade), t0.plusMillis(1).toEpochMilli());
 
             MessageEnvelope ts = output.readValue();
             assertThat(ts.ts().q_a_delta()).isEqualTo(40L);
             assertThat(ts.ts().q_a_total_after()).isEqualTo(40L);
-            assertThat(ts.ts().o()).isFalse();
+            assertThat(ts.ts().o()).isTrue();
             T t = driver.<String, TBucket>getKeyValueStore(StateStores.UNPROCESSED_T_STORE).get("AAA").items().get(0);
             assertThat(t.q_a_total()).isEqualTo(40L);
             assertThat(t.q_a_delta_last()).isEqualTo(40L);
@@ -131,7 +131,7 @@ class TopologyFactoryTest {
             TestInputTopic<String, MessageEnvelope> input = harness.input(driver, t0);
             TestOutputTopic<String, MessageEnvelope> output = harness.output(driver);
 
-            input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", 120L, 0L)), t0.toEpochMilli());
+            input.pipeInput("AAA", MessageEnvelope.forS(new S("s-1", "AAA", null, 120L, 0L, 0L, 0L, 0L, false, true, Dir.R, null)), t0.toEpochMilli());
             T csModeTrade = new T("t-1", "AAA", null, null, "R-1", null, null, null, TT.B, null, null, TCycle.SD, SMode.CS, AStatus.NORM, ActType.A01, MStatus.U, false, 100L, 0L, 0L, 0L, null);
             input.pipeInput("AAA", MessageEnvelope.forT(csModeTrade), t0.plusMillis(1).toEpochMilli());
 
