@@ -93,22 +93,97 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
 
     @Override
     public AllocationResult allocateForIncomingT(T incomingT, List<S> orderedCandidates, List<S> untouchedCandidates, String idPrefix) {
-        long incomingTOpen = TransitionsModel.remainingT(incomingT);
-        List<S> signCompatible = orderedCandidates.stream()
-                .filter(candidate -> isSModeCompatible(candidate, incomingT))
-                .filter(candidate -> isLedgerTimeCompatible(incomingT, candidate))
+        List<S> regularOrdered = new ArrayList<>();
+        List<S> regularUntouched = new ArrayList<>();
+        List<S> updatedOpposite = new ArrayList<>();
+        List<TS> emitted = new ArrayList<>();
+
+        T updatedT = incomingT;
+        int tsIndex = 0;
+
+        for (S candidate : orderedCandidates) {
+            if (isOppositeAutoAllocationEligible(candidate, incomingT)) {
+                long tRemaining = TransitionsModel.remainingT(updatedT);
+                long sRemaining = TransitionsModel.remainingS(candidate);
+                long oppositeAllocated = allocateOpposite(tRemaining, sRemaining);
+                S nextS = new S(
+                        candidate.id(),
+                        candidate.pid(),
+                        candidate.bDate(),
+                        candidate.q(),
+                        candidate.q_carry(),
+                        candidate.q_a(),
+                        oppositeAllocated,
+                        candidate.q_a_opposite_total() + oppositeAllocated,
+                        candidate.rollover(),
+                        candidate.o(),
+                        candidate.dir(),
+                        candidate.ledgerTime()
+                );
+                updatedOpposite.add(nextS);
+                if (oppositeAllocated != 0L) {
+                    long nextTotal = updatedT.q_a_total() + oppositeAllocated;
+                    updatedT = copyWithAllocation(updatedT, nextTotal, oppositeAllocated, nextS.bDate());
+                    emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.pidAlt1(), updatedT.pidAlt2(), updatedT.id(), nextS.id(), updatedT.accId(), updatedT.sorId(), updatedT.oarId(), updatedT.tDate(), nextS.bDate(), updatedT.q(), oppositeAllocated, nextTotal, updatedT.tt(), nextS.o()));
+                }
+            } else {
+                regularOrdered.add(candidate);
+            }
+        }
+
+        for (S candidate : untouchedCandidates) {
+            if (isOppositeAutoAllocationEligible(candidate, incomingT)) {
+                long tRemaining = TransitionsModel.remainingT(updatedT);
+                long sRemaining = TransitionsModel.remainingS(candidate);
+                long oppositeAllocated = allocateOpposite(tRemaining, sRemaining);
+                S nextS = new S(
+                        candidate.id(),
+                        candidate.pid(),
+                        candidate.bDate(),
+                        candidate.q(),
+                        candidate.q_carry(),
+                        candidate.q_a(),
+                        oppositeAllocated,
+                        candidate.q_a_opposite_total() + oppositeAllocated,
+                        candidate.rollover(),
+                        candidate.o(),
+                        candidate.dir(),
+                        candidate.ledgerTime()
+                );
+                updatedOpposite.add(nextS);
+                if (oppositeAllocated != 0L) {
+                    long nextTotal = updatedT.q_a_total() + oppositeAllocated;
+                    updatedT = copyWithAllocation(updatedT, nextTotal, oppositeAllocated, nextS.bDate());
+                    emitted.add(new TS(idPrefix + "-" + (++tsIndex), updatedT.pid(), updatedT.pidAlt1(), updatedT.pidAlt2(), updatedT.id(), nextS.id(), updatedT.accId(), updatedT.sorId(), updatedT.oarId(), updatedT.tDate(), nextS.bDate(), updatedT.q(), oppositeAllocated, nextTotal, updatedT.tt(), nextS.o()));
+                }
+            } else {
+                regularUntouched.add(candidate);
+            }
+        }
+
+        T oppositeAdjustedT = updatedT;
+        long incomingTOpen = TransitionsModel.remainingT(oppositeAdjustedT);
+        List<S> signCompatible = regularOrdered.stream()
+                .filter(candidate -> isSModeCompatible(candidate, oppositeAdjustedT))
+                .filter(candidate -> isLedgerTimeCompatibleForIncomingT(oppositeAdjustedT, candidate))
                 .filter(candidate -> areSignCompatible(incomingTOpen, TransitionsModel.remainingS(candidate)))
                 .toList();
-        List<S> signIncompatible = orderedCandidates.stream()
-                .filter(candidate -> !isSModeCompatible(candidate, incomingT)
-                        || !isLedgerTimeCompatible(incomingT, candidate)
+        List<S> signIncompatible = regularOrdered.stream()
+                .filter(candidate -> !isSModeCompatible(candidate, oppositeAdjustedT)
+                        || !isLedgerTimeCompatibleForIncomingT(oppositeAdjustedT, candidate)
                         || !areSignCompatible(incomingTOpen, TransitionsModel.remainingS(candidate)))
                 .toList();
-        List<S> reorderedCompatible = orderSCandidatesForIncomingT(signCompatible, incomingT);
-        List<S> combinedUntouched = new ArrayList<>(untouchedCandidates.size() + signIncompatible.size());
-        combinedUntouched.addAll(untouchedCandidates);
+        List<S> reorderedCompatible = orderSCandidatesForIncomingT(signCompatible, oppositeAdjustedT);
+        List<S> combinedUntouched = new ArrayList<>(regularUntouched.size() + signIncompatible.size() + updatedOpposite.size());
+        combinedUntouched.addAll(regularUntouched);
         combinedUntouched.addAll(signIncompatible);
-        return AllocationStrategy.super.allocateForIncomingT(incomingT, reorderedCompatible, combinedUntouched, idPrefix);
+        combinedUntouched.addAll(updatedOpposite);
+
+        AllocationResult regularResult = AllocationStrategy.super.allocateForIncomingT(oppositeAdjustedT, reorderedCompatible, combinedUntouched, idPrefix);
+        List<TS> combinedEmitted = new ArrayList<>(emitted.size() + regularResult.emittedTs().size());
+        combinedEmitted.addAll(emitted);
+        combinedEmitted.addAll(regularResult.emittedTs());
+        return new AllocationResult(regularResult.updatedIncomingT(), regularResult.updatedS(), combinedEmitted);
     }
 
     @Override
@@ -219,6 +294,25 @@ public final class AutoAllocOppositeStrategy implements AllocationStrategy {
                 && hasOppositeSign(t.q(), s.q())
                 && isLedgerTimeCompatible(t, s)
                 && isSModeCompatible(s, t);
+    }
+
+    private static boolean isOppositeAutoAllocationEligible(S s, T t) {
+        return t.sMode() == SMode.CN
+                && hasOppositeSign(t.q(), s.q())
+                && isLedgerTimeCompatibleForIncomingT(t, s)
+                && isSModeCompatible(s, t);
+    }
+
+    private static boolean isLedgerTimeCompatibleForIncomingT(T t, S s) {
+        return t.ledgerTime() == null || s.ledgerTime() == null || s.ledgerTime() <= t.ledgerTime();
+    }
+
+    private static long allocateOpposite(long targetOpen, long sourceOpen) {
+        if (targetOpen == 0L || sourceOpen == 0L) {
+            return 0L;
+        }
+        long magnitude = Math.min(Math.abs(targetOpen), Math.abs(sourceOpen));
+        return Long.signum(targetOpen) * magnitude;
     }
 
     private static boolean isLedgerTimeCompatible(T t, S s) {

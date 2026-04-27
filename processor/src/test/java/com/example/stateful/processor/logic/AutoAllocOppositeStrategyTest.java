@@ -5,6 +5,7 @@ import com.example.stateful.domain.Dir;
 import com.example.stateful.domain.S;
 import com.example.stateful.domain.SMode;
 import com.example.stateful.domain.T;
+import com.example.stateful.domain.TS;
 import com.example.stateful.domain.TT;
 import com.example.stateful.domain.TCycle;
 import org.junit.jupiter.api.Test;
@@ -178,6 +179,74 @@ class AutoAllocOppositeStrategyTest {
                         tuple("t-match", 10L),
                         tuple("t-mismatch", 0L)
                 );
+    }
+
+    @Test
+    void allocateForIncomingTAutoAllocatesOppositeSBeforeRegularAllocation() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        T incomingT = t("t-incoming", TT.B, 15L, 0L, 0L, AStatus.NORM, TCycle.SD, 100L, SMode.CN);
+        S oppositeS = new S("s-opposite", "PID", null, -12L, 0L, 0L, 0L, 5L, false, false, Dir.D, 99L);
+        S regularS = new S("s-regular", "PID", null, 10L, 0L, 0L, 0L, 0L, false, false, Dir.R, 100L);
+
+        AllocationResult result = strategy.allocateForIncomingT(
+                incomingT,
+                List.of(oppositeS, regularS),
+                List.of(),
+                "ts");
+
+        assertThat(result.updatedIncomingT().q_a_total()).isEqualTo(15L);
+        assertThat(result.updatedS())
+                .extracting(S::id, S::q_a, S::q_a_opposite_delta, S::q_a_opposite_total)
+                .containsExactly(
+                        tuple("s-regular", 3L, 0L, 0L),
+                        tuple("s-opposite", 0L, 12L, 17L)
+                );
+        assertThat(result.emittedTs())
+                .extracting(TS::sid, TS::q_a_delta, TS::q_a_total_after)
+                .containsExactly(
+                        tuple("s-opposite", 12L, 12L),
+                        tuple("s-regular", 3L, 15L)
+                );
+    }
+
+    @Test
+    void allocateForIncomingTOnlyAutoAllocatesOppositeWhenLedgerTimeIsCompatible() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        T incomingT = t("t-incoming", TT.B, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 100L, SMode.CN);
+        S eligibleOpposite = new S("s-opposite-eligible", "PID", null, -8L, 0L, 0L, 0L, 0L, false, false, Dir.D, 100L);
+        S ineligibleOpposite = new S("s-opposite-ineligible", "PID", null, -8L, 0L, 0L, 0L, 0L, false, false, Dir.D, 101L);
+
+        AllocationResult result = strategy.allocateForIncomingT(
+                incomingT,
+                List.of(eligibleOpposite, ineligibleOpposite),
+                List.of(),
+                "ts");
+
+        assertThat(result.updatedIncomingT().q_a_total()).isEqualTo(8L);
+        assertThat(result.updatedS())
+                .extracting(S::id, S::q_a_opposite_delta)
+                .containsExactly(
+                        tuple("s-opposite-ineligible", 0L),
+                        tuple("s-opposite-eligible", 8L)
+                );
+    }
+
+    @Test
+    void allocateForIncomingTOnlyAutoAllocatesOppositeForCnMode() {
+        AutoAllocOppositeStrategy strategy = new AutoAllocOppositeStrategy(24680L);
+        T incomingT = t("t-incoming", TT.B, 10L, 0L, 0L, AStatus.NORM, TCycle.SD, 100L, SMode.CS);
+        S oppositeS = new S("s-opposite", "PID", null, -10L, 0L, 0L, 0L, 0L, false, true, Dir.D, 100L);
+
+        AllocationResult result = strategy.allocateForIncomingT(
+                incomingT,
+                List.of(oppositeS),
+                List.of(),
+                "ts");
+
+        assertThat(result.updatedIncomingT().q_a_total()).isEqualTo(0L);
+        assertThat(result.updatedS())
+                .extracting(S::id, S::q_a_opposite_delta)
+                .containsExactly(tuple("s-opposite", 0L));
     }
 
     private static T t(String id, TT tt, long q, long qATotal, long qF, AStatus status, TCycle tCycle, Long ledgerTime) {
